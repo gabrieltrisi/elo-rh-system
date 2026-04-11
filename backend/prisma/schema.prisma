@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id            Int            @id @default(autoincrement())
+  name          String
+  cnpj          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  users         User[]
+  employees     Employee[]
+  uniformStocks UniformStock[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  email     String   @unique
+  password  String
+  role      String   @default("ADMIN")
+  companyId Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model Employee {
+  id            Int              @id @default(autoincrement())
+  name          String
+  cpf           String
+  birthDate     DateTime
+  maritalStatus String
+  email         String
+  phone         String
+  role          String
+  department    String
+  admissionDate DateTime
+  status        String           @default("ativo")
+
+  shirtSize     String?
+  pantsSize     String?
+  bootSize      String?
+
+  notes         String?
+  companyId     Int
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vacations     Vacation[]
+  certificates  Certificate[]
+  uniforms      UniformControl[]
+  workHours     WorkHour[]
+  workSchedules WorkSchedule[]
+
+  @@unique([companyId, email])
+  @@unique([companyId, cpf])
+}
+
+model Vacation {
+  id                Int      @id @default(autoincrement())
+  employeeId        Int
+  acquisitionPeriod String
+  startDate         DateTime
+  endDate           DateTime
+  days              Int
+  status            String   @default("PENDENTE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Certificate {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  title        String
+  startDate    DateTime
+  endDate      DateTime
+  days         Int
+  fileUrl      String?
+  status       String   @default("PENDENTE")
+  managerNotes String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model UniformControl {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  size         String?
+  quantity     Int      @default(1)
+  deliveryDate DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model UniformStock {
+  id                Int      @id @default(autoincrement())
+  companyId         Int
+  itemName          String
+  color             String?
+  size              String?
+  availableQuantity Int      @default(0)
+  minimumQuantity   Int      @default(0)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model WorkHour {
+  id                Int      @id @default(autoincrement())
+  employeeId        Int
+  referenceMonth    Int
+  referenceYear     Int
+  normalHours       Float    @default(0)
+  extraHours50      Float    @default(0)
+  extraHours100     Float    @default(0)
+  nightHours20      Float    @default(0)
+  nightExtraHours70 Float    @default(0)
+  n52Hours          Float    @default(0)
+  totalPaid         Float    @default(0)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, referenceMonth, referenceYear])
+  @@index([referenceYear, referenceMonth])
+}
+
+model WorkSchedule {
+  id              Int      @id @default(autoincrement())
+  employeeId      Int
+  scheduleType    String
+  workModel       String?
+  categoryType    String?
+  isTrustPosition Boolean  @default(false)
+  worksOnHolidays Boolean  @default(false)
+  observations    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
