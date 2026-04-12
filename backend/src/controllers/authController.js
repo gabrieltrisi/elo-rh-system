@@ -2,9 +2,9 @@ import prisma from '../prisma/client.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
-// 🔥 BOOTSTRAP INICIAL
-export const bootstrap = async (req, res) => {
-  const { companyName, cnpj, name, email, password, role } = req.body;
+// 🔥 BOOTSTRAP INICIAL DO SISTEMA
+export const bootstrapAdmin = async (req, res) => {
+  const { companyName, cnpj, name, email, password } = req.body;
 
   try {
     if (!companyName || !name || !email || !password) {
@@ -13,25 +13,12 @@ export const bootstrap = async (req, res) => {
       });
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    const existingCompany = await prisma.company.findFirst();
+    const existingUser = await prisma.user.findFirst();
 
-    if (existingUser) {
+    if (existingCompany || existingUser) {
       return res.status(400).json({
-        message: 'Já existe um usuário com este e-mail',
-      });
-    }
-
-    const existingCompany = await prisma.company.findFirst({
-      where: {
-        name: companyName,
-      },
-    });
-
-    if (existingCompany) {
-      return res.status(400).json({
-        message: 'Já existe uma empresa com este nome',
+        message: 'Sistema já foi inicializado. Bootstrap não permitido.',
       });
     }
 
@@ -50,7 +37,7 @@ export const bootstrap = async (req, res) => {
           name,
           email,
           password: hashedPassword,
-          role: role || 'ADMIN',
+          role: 'ADMIN',
           companyId: company.id,
         },
       });
@@ -59,7 +46,7 @@ export const bootstrap = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: 'Empresa e usuário administrador criados com sucesso',
+      message: 'Sistema inicializado com sucesso',
       company: {
         id: result.company.id,
         name: result.company.name,
@@ -168,6 +155,12 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: 'Senha inválida' });
     }
 
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        message: 'JWT_SECRET não configurado no servidor',
+      });
+    }
+
     const token = jwt.sign(
       {
         userId: user.id,
@@ -175,7 +168,7 @@ export const login = async (req, res) => {
         role: user.role,
         companyId: user.companyId,
       },
-      process.env.JWT_SECRET || 'minha_chave_secreta',
+      process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
