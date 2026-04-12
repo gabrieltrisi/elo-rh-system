@@ -11,6 +11,7 @@ import workScheduleRoutes from './routes/workScheduleRoutes.js';
 
 const app = express();
 
+// 🔥 ORIGENS PERMITIDAS FIXAS + ENV
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -19,25 +20,48 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
+// 🔥 PERMITE QUALQUER DEPLOY DA VERCEL DO SEU PROJETO
+const isAllowedVercelOrigin = (origin) => {
+  if (!origin) return false;
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+
+    return (
+      hostname === 'elo-rh-system.vercel.app' ||
+      hostname.endsWith('.vercel.app')
+    );
+  } catch {
+    return false;
+  }
+};
+
+// 🔥 CORS CORRIGIDO (SEM QUEBRAR LOCAL)
 app.use(
   cors({
     origin(origin, callback) {
+      // permite chamadas internas (ex: Postman)
       if (!origin) {
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
+      // libera localhost + env + vercel
+      if (allowedOrigins.includes(origin) || isAllowedVercelOrigin(origin)) {
         return callback(null, true);
       }
 
-      return callback(new Error(`Origem não permitida pelo CORS: ${origin}`));
+      console.warn(`❌ CORS bloqueado para origem: ${origin}`);
+      return callback(null, false);
     },
     credentials: true,
   })
 );
 
+// 🔥 JSON
 app.use(express.json());
 
+// 🔥 ROTAS BASE
 app.get('/', (req, res) => {
   res.send('API Elo System rodando 🚀');
 });
@@ -50,6 +74,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+// 🔥 ROTAS PRINCIPAIS
 app.use('/auth', authRoutes);
 app.use('/employees', employeeRoutes);
 app.use('/vacations', vacationRoutes);
@@ -58,12 +83,14 @@ app.use('/uniforms', uniformRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/work-schedules', workScheduleRoutes);
 
+// 🔥 404
 app.use((req, res) => {
   res.status(404).json({
     message: 'Rota não encontrada',
   });
 });
 
+// 🔥 ERRO GLOBAL
 app.use((err, req, res, next) => {
   console.error('Erro na aplicação:', err);
 

@@ -2,12 +2,97 @@ import prisma from '../prisma/client.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
+// 🔥 BOOTSTRAP INICIAL
+export const bootstrap = async (req, res) => {
+  const { companyName, cnpj, name, email, password, role } = req.body;
+
+  try {
+    if (!companyName || !name || !email || !password) {
+      return res.status(400).json({
+        message: 'companyName, name, email e password são obrigatórios',
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        message: 'Já existe um usuário com este e-mail',
+      });
+    }
+
+    const existingCompany = await prisma.company.findFirst({
+      where: {
+        name: companyName,
+      },
+    });
+
+    if (existingCompany) {
+      return res.status(400).json({
+        message: 'Já existe uma empresa com este nome',
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: {
+          name: companyName,
+          cnpj: cnpj || null,
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role: role || 'ADMIN',
+          companyId: company.id,
+        },
+      });
+
+      return { company, user };
+    });
+
+    return res.status(201).json({
+      message: 'Empresa e usuário administrador criados com sucesso',
+      company: {
+        id: result.company.id,
+        name: result.company.name,
+        cnpj: result.company.cnpj,
+      },
+      user: {
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
+        role: result.user.role,
+        companyId: result.user.companyId,
+      },
+    });
+  } catch (error) {
+    console.error('BOOTSTRAP ERROR:', error);
+    return res.status(500).json({
+      message: 'Erro no servidor',
+      error: error.message,
+    });
+  }
+};
+
 // 🔥 REGISTER
 export const register = async (req, res) => {
   const { name, email, password, companyId, role } = req.body;
 
   try {
-    // verifica se usuário já existe
+    if (!name || !email || !password || !companyId) {
+      return res.status(400).json({
+        message: 'name, email, password e companyId são obrigatórios',
+      });
+    }
+
     const userExists = await prisma.user.findUnique({
       where: { email },
     });
@@ -16,7 +101,6 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: 'Usuário já existe' });
     }
 
-    // verifica empresa
     const companyExists = await prisma.company.findUnique({
       where: { id: Number(companyId) },
     });
@@ -25,10 +109,8 @@ export const register = async (req, res) => {
       return res.status(404).json({ message: 'Empresa não encontrada' });
     }
 
-    // hash senha
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // cria usuário
     const newUser = await prisma.user.create({
       data: {
         name,
@@ -63,7 +145,12 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // busca usuário
+    if (!email || !password) {
+      return res.status(400).json({
+        message: 'E-mail e senha são obrigatórios',
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -75,14 +162,12 @@ export const login = async (req, res) => {
       return res.status(404).json({ message: 'Usuário não encontrado' });
     }
 
-    // valida senha
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
       return res.status(401).json({ message: 'Senha inválida' });
     }
 
-    // gera token
     const token = jwt.sign(
       {
         userId: user.id,
