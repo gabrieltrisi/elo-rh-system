@@ -13,19 +13,33 @@ function Login({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: name === 'email' ? value.trimStart().toLowerCase() : value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (loading) return;
+
+    const payload = {
+      email: form.email.trim().toLowerCase(),
+      password: form.password,
+    };
+
+    if (!payload.email || !payload.password) {
+      toast.error('Informe e-mail e senha.');
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const response = await api.post('/auth/login', form);
+      const response = await api.post('/auth/login', payload);
 
       const token =
         response.data?.token ||
@@ -33,21 +47,29 @@ function Login({ onLogin }) {
         response.data?.data?.token ||
         response.data?.user?.token;
 
+      const user = response.data?.user || response.data?.data?.user || null;
+
       if (!token) {
         throw new Error('Token não encontrado na resposta do login');
       }
 
       localStorage.setItem('token', token);
 
-      if (response.data?.user) {
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('user');
       }
 
       toast.success('Login realizado com sucesso!');
       onLogin();
     } catch (error) {
-      console.error(error);
-      toast.error(error.response?.data?.message || 'Erro ao fazer login');
+      console.error('LOGIN FRONT ERROR:', error);
+
+      const message =
+        error.response?.data?.message || error.message || 'Erro ao fazer login';
+
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -170,6 +192,7 @@ function Login({ onLogin }) {
                     value={form.email}
                     onChange={handleChange}
                     placeholder='Digite seu e-mail'
+                    autoComplete='email'
                     className='w-full rounded-2xl border border-slate-300 bg-white px-4 py-3.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-4 focus:ring-slate-100'
                     required
                   />
@@ -197,6 +220,7 @@ function Login({ onLogin }) {
                       value={form.password}
                       onChange={handleChange}
                       placeholder='Digite sua senha'
+                      autoComplete='current-password'
                       className='w-full rounded-2xl border border-slate-300 bg-white px-4 py-3.5 pr-12 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-4 focus:ring-slate-100'
                       required
                     />

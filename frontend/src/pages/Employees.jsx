@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import api from '../services/api';
 
 const shirtSizeOptions = ['PP', 'P', 'M', 'G', 'GG', 'GGG'];
 const pantsSizeOptions = ['36', '38', '40', '42', '44', '46', '48'];
@@ -56,12 +54,6 @@ const Employees = () => {
   const [saving, setSaving] = useState(false);
   const [historyTab, setHistoryTab] = useState('summary');
 
-  const token = localStorage.getItem('token');
-
-  const authHeaders = {
-    Authorization: `Bearer ${token}`,
-  };
-
   useEffect(() => {
     fetchEmployees();
     loadUniformHistory();
@@ -75,11 +67,9 @@ const Employees = () => {
       setLoading(true);
       setError('');
 
-      const response = await axios.get(`${API_URL}/employees`, {
-        headers: authHeaders,
-      });
+      const response = await api.get('/employees');
 
-      setEmployees(response.data.employees || []);
+      setEmployees(response.data?.employees || response.data || []);
     } catch (err) {
       console.error('Erro ao buscar colaboradores:', err);
       setError(
@@ -156,11 +146,8 @@ const Employees = () => {
 
   const loadWorkSchedulesHistory = async () => {
     try {
-      const response = await axios.get(`${API_URL}/work-schedules`, {
-        headers: authHeaders,
-      });
-
-      setWorkSchedulesHistory(response.data.schedules || []);
+      const response = await api.get('/work-schedules');
+      setWorkSchedulesHistory(response.data?.schedules || response.data || []);
     } catch (error) {
       console.error('Erro ao buscar escalas:', error);
       setWorkSchedulesHistory([]);
@@ -410,10 +397,7 @@ const Employees = () => {
     if (!confirmDelete) return;
 
     try {
-      await axios.delete(`${API_URL}/employees/${id}`, {
-        headers: authHeaders,
-      });
-
+      await api.delete(`/employees/${id}`);
       fetchEmployees();
     } catch (err) {
       console.error('Erro ao excluir colaborador:', err);
@@ -502,9 +486,7 @@ const Employees = () => {
     try {
       setSaving(true);
 
-      await axios.post(`${API_URL}/employees`, payload, {
-        headers: authHeaders,
-      });
+      await api.post('/employees', payload);
 
       closeCreateModal();
       fetchEmployees();

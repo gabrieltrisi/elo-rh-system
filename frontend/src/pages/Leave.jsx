@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const initialForm = {
   employeeId: '',
@@ -21,8 +21,6 @@ const Leave = () => {
   const [formData, setFormData] = useState(initialForm);
   const [saving, setSaving] = useState(false);
 
-  const token = localStorage.getItem('token');
-
   useEffect(() => {
     fetchEmployees();
     const saved = localStorage.getItem('leave');
@@ -36,9 +34,7 @@ const Leave = () => {
   const fetchEmployees = async () => {
     try {
       setLoadingEmployees(true);
-      const res = await axios.get('http://localhost:3000/employees', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/employees');
       setEmployees(res.data.employees || []);
     } catch (error) {
       console.error('Erro ao buscar colaboradores:', error);

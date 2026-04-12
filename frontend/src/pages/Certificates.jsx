@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const initialForm = {
   employeeId: '',
@@ -27,8 +27,6 @@ const Certificates = () => {
   const [formData, setFormData] = useState(initialForm);
   const [saving, setSaving] = useState(false);
 
-  const token = localStorage.getItem('token');
-
   useEffect(() => {
     fetchEmployees();
     loadCertificates();
@@ -42,11 +40,9 @@ const Certificates = () => {
     try {
       setLoadingEmployees(true);
 
-      const res = await axios.get('http://localhost:3000/employees', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/employees');
 
-      setEmployees(res.data.employees || []);
+      setEmployees(res.data?.employees || res.data || []);
     } catch (err) {
       console.error('Erro ao buscar colaboradores:', err);
       setEmployees([]);
