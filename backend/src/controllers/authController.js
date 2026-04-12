@@ -13,6 +13,16 @@ export const bootstrapAdmin = async (req, res) => {
       });
     }
 
+    const existingUserByEmail = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUserByEmail) {
+      return res.status(400).json({
+        message: 'Já existe um usuário com este e-mail',
+      });
+    }
+
     const existingCompany = await prisma.company.findFirst();
     const existingUser = await prisma.user.findFirst();
 
@@ -47,6 +57,10 @@ export const bootstrapAdmin = async (req, res) => {
 
     return res.status(201).json({
       message: 'Sistema inicializado com sucesso',
+      system: {
+        platformName: 'Elo SaaS',
+        createdBy: 'Gabriel Trisi Dev',
+      },
       company: {
         id: result.company.id,
         name: result.company.name,
