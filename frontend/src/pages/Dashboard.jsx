@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, BellRing } from 'lucide-react';
 
 function Dashboard({ onNavigate }) {
   const [employees, setEmployees] = useState([]);
@@ -216,6 +216,84 @@ function Dashboard({ onNavigate }) {
       )
       .sort((a, b) => a.daysUntilReturn - b.daysUntilReturn);
   }, [leave]);
+
+  const upcomingVacationItems = useMemo(() => {
+    const today = new Date();
+
+    return vacations
+      .map((item) => {
+        const startDate = new Date(item.startDate);
+
+        if (Number.isNaN(startDate.getTime())) return null;
+
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const diff = Math.ceil((startDate - today) / msPerDay);
+
+        return {
+          ...item,
+          daysUntilStart: diff,
+          employeeLabel:
+            item.employee?.name || item.employee?.fullName || 'Colaborador',
+        };
+      })
+      .filter(
+        (item) => item && item.daysUntilStart >= 0 && item.daysUntilStart <= 15
+      )
+      .sort((a, b) => a.daysUntilStart - b.daysUntilStart)
+      .slice(0, 3);
+  }, [vacations]);
+
+  const upcomingDocumentItems = useMemo(() => {
+    return pendingDocuments.slice(0, 2).map((item, index) => ({
+      id: item.id || `doc-${index}`,
+      title: item.title || item.documentName || 'Documento pendente',
+      employeeLabel:
+        item.employeeName || item.fullName || item.employee || 'Colaborador',
+      type: 'document',
+    }));
+  }, [pendingDocuments]);
+
+  const nextEvents = useMemo(() => {
+    const events = [];
+
+    upcomingVacationItems.forEach((item, index) => {
+      events.push({
+        id: `vac-${item.id || index}`,
+        title:
+          item.daysUntilStart === 0
+            ? `${item.employeeLabel} inicia férias hoje`
+            : `${item.employeeLabel} inicia férias em ${item.daysUntilStart} dia(s)`,
+        subtitle: item.acquisitionPeriod || 'Férias programadas',
+        tone: item.daysUntilStart <= 3 ? 'blue' : 'slate',
+      });
+    });
+
+    leaveReturningSoon.slice(0, 2).forEach((item, index) => {
+      const employeeName =
+        item.employeeName || item.fullName || item.employee || 'Colaborador';
+
+      events.push({
+        id: `leave-${index}`,
+        title:
+          item.daysUntilReturn === 0
+            ? `${employeeName} retorna hoje`
+            : `${employeeName} retorna em ${item.daysUntilReturn} dia(s)`,
+        subtitle: 'Retorno de afastamento',
+        tone: item.daysUntilReturn <= 2 ? 'amber' : 'slate',
+      });
+    });
+
+    upcomingDocumentItems.forEach((item) => {
+      events.push({
+        id: item.id,
+        title: `${item.employeeLabel} possui pendência documental`,
+        subtitle: item.title,
+        tone: 'red',
+      });
+    });
+
+    return events.slice(0, 3);
+  }, [upcomingVacationItems, leaveReturningSoon, upcomingDocumentItems]);
 
   const smartFrontendAlerts = useMemo(() => {
     const extraAlerts = [];
@@ -504,16 +582,46 @@ function Dashboard({ onNavigate }) {
             </div>
           </button>
 
-          <div className='flex min-w-[220px] items-center gap-4 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm'>
-            <div className='flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-xl font-bold text-white'>
-              A
-            </div>
+          <button
+            type='button'
+            onClick={() => onNavigate('calendar')}
+            className='min-w-[220px] rounded-3xl border border-slate-200 bg-white px-5 py-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'
+          >
+            <div className='flex items-start gap-4'>
+              <div className='flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700'>
+                <BellRing className='h-7 w-7' />
+              </div>
 
-            <div>
-              <p className='text-lg font-semibold text-slate-900'>Admin</p>
-              <p className='text-sm text-slate-500'>Acesso interno</p>
+              <div className='min-w-0 flex-1'>
+                <p className='text-lg font-semibold text-slate-900'>
+                  Próximos eventos
+                </p>
+                <p className='text-sm text-slate-500'>Agenda operacional</p>
+
+                <div className='mt-3 space-y-2'>
+                  {nextEvents.length === 0 ? (
+                    <div className='rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-500'>
+                      Sem eventos programados no momento
+                    </div>
+                  ) : (
+                    nextEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className={`rounded-2xl border px-3 py-2 ${getEventClasses(
+                          event.tone
+                        )}`}
+                      >
+                        <p className='text-sm font-semibold'>{event.title}</p>
+                        <p className='mt-0.5 text-xs opacity-80'>
+                          {event.subtitle}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -881,6 +989,22 @@ function getAlertClasses(tone) {
   }
 
   return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+}
+
+function getEventClasses(tone) {
+  if (tone === 'red') {
+    return 'border-red-200 bg-red-50 text-red-700';
+  }
+
+  if (tone === 'amber') {
+    return 'border-amber-200 bg-amber-50 text-amber-700';
+  }
+
+  if (tone === 'blue') {
+    return 'border-blue-200 bg-blue-50 text-blue-700';
+  }
+
+  return 'border-slate-200 bg-slate-50 text-slate-700';
 }
 
 export default Dashboard;
