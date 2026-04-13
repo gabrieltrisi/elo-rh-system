@@ -31,13 +31,21 @@ const authMiddleware = (req, res, next) => {
       process.env.JWT_SECRET || 'minha_chave_secreta'
     );
 
-    // 🔥 AQUI ESTÁ O PODER DO MULTIEMPRESA
     req.user = {
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role,
-      companyId: decoded.companyId,
+      companyId:
+        decoded.companyId !== undefined && decoded.companyId !== null
+          ? Number(decoded.companyId)
+          : null,
     };
+
+    if (!req.user.companyId) {
+      return res.status(401).json({
+        message: 'Token sem companyId válido',
+      });
+    }
 
     return next();
   } catch (error) {

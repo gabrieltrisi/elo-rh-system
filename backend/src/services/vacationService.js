@@ -9,11 +9,19 @@ const employeeSelect = {
   status: true,
 };
 
+const ensureValidCompanyId = (companyId) => {
+  if (!companyId || Number.isNaN(Number(companyId))) {
+    throw new AppError('Empresa do usuário não identificada', 401);
+  }
+};
+
 const ensureEmployeeBelongsToCompany = async (employeeId, companyId) => {
+  ensureValidCompanyId(companyId);
+
   const employee = await prisma.employee.findFirst({
     where: {
-      id: employeeId,
-      companyId,
+      id: Number(employeeId),
+      companyId: Number(companyId),
     },
     select: employeeSelect,
   });
@@ -26,11 +34,13 @@ const ensureEmployeeBelongsToCompany = async (employeeId, companyId) => {
 };
 
 const ensureVacationBelongsToCompany = async (vacationId, companyId) => {
+  ensureValidCompanyId(companyId);
+
   const vacation = await prisma.vacation.findFirst({
     where: {
-      id: vacationId,
+      id: Number(vacationId),
       employee: {
-        companyId,
+        companyId: Number(companyId),
       },
     },
     include: {
@@ -48,15 +58,16 @@ const ensureVacationBelongsToCompany = async (vacationId, companyId) => {
 };
 
 export const createVacationService = async (data, companyId) => {
+  ensureValidCompanyId(companyId);
   await ensureEmployeeBelongsToCompany(data.employeeId, companyId);
 
   const vacation = await prisma.vacation.create({
     data: {
-      employeeId: data.employeeId,
+      employeeId: Number(data.employeeId),
       acquisitionPeriod: data.acquisitionPeriod,
       startDate: new Date(data.startDate),
       endDate: new Date(data.endDate),
-      days: data.days,
+      days: Number(data.days),
       status: data.status,
     },
     include: {
@@ -70,10 +81,12 @@ export const createVacationService = async (data, companyId) => {
 };
 
 export const getAllVacationsService = async (companyId) => {
+  ensureValidCompanyId(companyId);
+
   const vacations = await prisma.vacation.findMany({
     where: {
       employee: {
-        companyId,
+        companyId: Number(companyId),
       },
     },
     include: {
@@ -95,13 +108,14 @@ export const getAllVacationsService = async (companyId) => {
 };
 
 export const getVacationsByEmployeeService = async (employeeId, companyId) => {
+  ensureValidCompanyId(companyId);
   await ensureEmployeeBelongsToCompany(employeeId, companyId);
 
   const vacations = await prisma.vacation.findMany({
     where: {
-      employeeId,
+      employeeId: Number(employeeId),
       employee: {
-        companyId,
+        companyId: Number(companyId),
       },
     },
     include: {
@@ -123,19 +137,20 @@ export const getVacationsByEmployeeService = async (employeeId, companyId) => {
 };
 
 export const updateVacationService = async (vacationId, data, companyId) => {
+  ensureValidCompanyId(companyId);
   await ensureVacationBelongsToCompany(vacationId, companyId);
   await ensureEmployeeBelongsToCompany(data.employeeId, companyId);
 
   const vacation = await prisma.vacation.update({
     where: {
-      id: vacationId,
+      id: Number(vacationId),
     },
     data: {
-      employeeId: data.employeeId,
+      employeeId: Number(data.employeeId),
       acquisitionPeriod: data.acquisitionPeriod,
       startDate: new Date(data.startDate),
       endDate: new Date(data.endDate),
-      days: data.days,
+      days: Number(data.days),
       status: data.status,
     },
     include: {
@@ -149,11 +164,12 @@ export const updateVacationService = async (vacationId, data, companyId) => {
 };
 
 export const deleteVacationService = async (vacationId, companyId) => {
+  ensureValidCompanyId(companyId);
   await ensureVacationBelongsToCompany(vacationId, companyId);
 
   await prisma.vacation.delete({
     where: {
-      id: vacationId,
+      id: Number(vacationId),
     },
   });
 };
