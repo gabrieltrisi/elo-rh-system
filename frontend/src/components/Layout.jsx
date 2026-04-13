@@ -87,6 +87,7 @@ function Layout({
       items: [
         { key: 'dashboard', label: 'Dashboard', icon: '📊' },
         { key: 'vacations', label: 'Férias', icon: '🌴' },
+        { key: 'calendar', label: 'Calendário', icon: '🗓️' },
       ],
     },
   ];
@@ -99,6 +100,7 @@ function Layout({
     benefits: 'Benefícios',
     onboarding: 'Integração (Onboarding)',
     vacations: 'Férias',
+    calendar: 'Calendário',
     timesheet: 'Folha de Ponto',
     bankHours: 'Banco de Horas',
     certificates: 'Atestados',
