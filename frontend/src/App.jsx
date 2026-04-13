@@ -12,6 +12,7 @@ import Benefits from './pages/Benefits';
 import Onboarding from './pages/Onboarding';
 import Leave from './pages/Leave';
 import Suspensions from './pages/Suspensions';
+import CalendarPage from './pages/CalendarPage';
 import Layout from './components/Layout';
 import api from './services/api';
 
@@ -44,14 +45,13 @@ function PlaceholderPage({ title, description }) {
 }
 
 function App() {
-  // 🔥 FORÇA LOGIN NOVO (resolve bug do token)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-
   const [page, setPage] = useState('dashboard');
   const [pendingCertificates, setPendingCertificates] = useState(0);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setIsAuthenticated(false);
     setPage('dashboard');
   };
@@ -79,6 +79,11 @@ function App() {
       }
     }
   };
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setIsAuthenticated(Boolean(token));
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -124,6 +129,7 @@ function App() {
         {page === 'onboarding' && <Onboarding />}
         {page === 'leave' && <Leave />}
         {page === 'suspensions' && <Suspensions />}
+        {page === 'calendar' && <CalendarPage />}
 
         {page === 'timesheet' && (
           <PlaceholderPage

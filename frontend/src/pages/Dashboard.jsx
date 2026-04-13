@@ -10,6 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { CalendarDays } from 'lucide-react';
 
 function Dashboard({ onNavigate }) {
   const [employees, setEmployees] = useState([]);
@@ -443,45 +444,75 @@ function Dashboard({ onNavigate }) {
 
   return (
     <div className='space-y-8'>
-      <div className='overflow-hidden rounded-[32px] bg-gradient-to-r from-slate-950 via-slate-900 to-blue-900 p-8 text-white shadow-xl'>
-        <div className='flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between'>
-          <div className='max-w-3xl'>
-            <p className='text-sm font-medium uppercase tracking-[0.25em] text-blue-200'>
-              Painel inteligente
-            </p>
-            <h1 className='mt-3 text-4xl font-bold sm:text-5xl'>
-              Dashboard estratégico do RH
-            </h1>
-            <p className='mt-4 text-lg text-slate-300'>
-              Visualize indicadores, riscos, movimentações e alertas
-              inteligentes para apoiar a gestão no dia a dia.
-            </p>
-          </div>
+      <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+        <div className='overflow-hidden rounded-[32px] bg-gradient-to-r from-slate-950 via-slate-900 to-blue-900 p-8 text-white shadow-xl xl:flex-1'>
+          <div className='flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between'>
+            <div className='max-w-3xl'>
+              <p className='text-sm font-medium uppercase tracking-[0.25em] text-blue-200'>
+                Painel inteligente
+              </p>
+              <h1 className='mt-3 text-4xl font-bold sm:text-5xl'>
+                Dashboard estratégico do RH
+              </h1>
+              <p className='mt-4 text-lg text-slate-300'>
+                Visualize indicadores, riscos, movimentações e alertas
+                inteligentes para apoiar a gestão no dia a dia.
+              </p>
+            </div>
 
-          <div className='flex flex-wrap gap-3 xl:max-w-[760px] xl:justify-end'>
-            {[
-              { label: 'Colaboradores', page: 'employees' },
-              { label: 'Atestados', page: 'certificates' },
-              { label: 'Advertências', page: 'warnings' },
-              { label: 'Férias', page: 'vacations' },
-              { label: 'Documentos', page: 'documents' },
-            ].map((btn) => (
+            <div className='flex flex-wrap gap-3 xl:max-w-[760px] xl:justify-end'>
+              {[
+                { label: 'Colaboradores', page: 'employees' },
+                { label: 'Atestados', page: 'certificates' },
+                { label: 'Advertências', page: 'warnings' },
+                { label: 'Férias', page: 'vacations' },
+                { label: 'Documentos', page: 'documents' },
+              ].map((btn) => (
+                <button
+                  key={btn.page}
+                  onClick={() => onNavigate(btn.page)}
+                  className='rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-md transition hover:scale-[1.03] hover:bg-white/20'
+                >
+                  {btn.label}
+                </button>
+              ))}
+
               <button
-                key={btn.page}
-                onClick={() => onNavigate(btn.page)}
-                className='rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-md transition hover:scale-[1.03] hover:bg-white/20'
+                onClick={generatePDF}
+                disabled={generatingPdf}
+                className='rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg transition hover:scale-[1.03] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60'
               >
-                {btn.label}
+                {generatingPdf ? 'Gerando PDF...' : '📄 Exportar PDF'}
               </button>
-            ))}
+            </div>
+          </div>
+        </div>
 
-            <button
-              onClick={generatePDF}
-              disabled={generatingPdf}
-              className='rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg transition hover:scale-[1.03] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60'
-            >
-              {generatingPdf ? 'Gerando PDF...' : '📄 Exportar PDF'}
-            </button>
+        <div className='flex flex-col gap-3 md:flex-row xl:flex-col'>
+          <button
+            type='button'
+            onClick={() => onNavigate('calendar')}
+            className='flex min-w-[220px] items-center gap-4 rounded-3xl border border-blue-100 bg-white px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'
+          >
+            <div className='flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-sm'>
+              <CalendarDays className='h-7 w-7' />
+            </div>
+
+            <div className='text-left'>
+              <p className='text-lg font-semibold text-slate-900'>Calendário</p>
+              <p className='text-sm text-slate-500'>Google / Outlook</p>
+            </div>
+          </button>
+
+          <div className='flex min-w-[220px] items-center gap-4 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm'>
+            <div className='flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-xl font-bold text-white'>
+              A
+            </div>
+
+            <div>
+              <p className='text-lg font-semibold text-slate-900'>Admin</p>
+              <p className='text-sm text-slate-500'>Acesso interno</p>
+            </div>
           </div>
         </div>
       </div>
