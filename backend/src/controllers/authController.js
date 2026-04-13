@@ -55,12 +55,26 @@ export const bootstrapAdmin = async (req, res) => {
       return { company, user };
     });
 
+    const jwtSecret = process.env.JWT_SECRET || 'minha_chave_secreta';
+
+    const token = jwt.sign(
+      {
+        userId: result.user.id,
+        email: result.user.email,
+        role: result.user.role,
+        companyId: result.user.companyId,
+      },
+      jwtSecret,
+      { expiresIn: '1d' }
+    );
+
     return res.status(201).json({
       message: 'Sistema inicializado com sucesso',
       system: {
         platformName: 'Elo SaaS',
         createdBy: 'Gabriel Trisi Dev',
       },
+      token,
       company: {
         id: result.company.id,
         name: result.company.name,
@@ -72,6 +86,7 @@ export const bootstrapAdmin = async (req, res) => {
         email: result.user.email,
         role: result.user.role,
         companyId: result.user.companyId,
+        companyName: result.company.name,
       },
     });
   } catch (error) {
@@ -169,11 +184,7 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: 'Senha inválida' });
     }
 
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({
-        message: 'JWT_SECRET não configurado no servidor',
-      });
-    }
+    const jwtSecret = process.env.JWT_SECRET || 'minha_chave_secreta';
 
     const token = jwt.sign(
       {
@@ -182,7 +193,7 @@ export const login = async (req, res) => {
         role: user.role,
         companyId: user.companyId,
       },
-      process.env.JWT_SECRET,
+      jwtSecret,
       { expiresIn: '1d' }
     );
 
