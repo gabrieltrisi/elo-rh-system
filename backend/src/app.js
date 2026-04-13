@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/authRoutes.js';
 import employeeRoutes from './routes/employeeRoutes.js';
@@ -8,8 +10,12 @@ import certificateRoutes from './routes/certificateRoutes.js';
 import uniformRoutes from './routes/uniformRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import workScheduleRoutes from './routes/workScheduleRoutes.js';
+import documentRoutes from './routes/documentRoutes.js';
 
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 🔥 ORIGENS PERMITIDAS FIXAS + ENV
 const allowedOrigins = [
@@ -61,6 +67,9 @@ app.use(
 // 🔥 JSON
 app.use(express.json());
 
+// 🔥 ARQUIVOS ESTÁTICOS (UPLOADS)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // 🔥 ROTAS BASE
 app.get('/', (req, res) => {
   res.send('API Elo System rodando 🚀');
@@ -82,6 +91,7 @@ app.use('/certificates', certificateRoutes);
 app.use('/uniforms', uniformRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/work-schedules', workScheduleRoutes);
+app.use('/documents', documentRoutes);
 
 // 🔥 404
 app.use((req, res) => {

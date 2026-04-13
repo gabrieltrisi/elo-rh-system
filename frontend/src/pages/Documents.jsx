@@ -3,19 +3,17 @@ import api from '../services/api';
 
 const initialForm = {
   employeeId: '',
-  employeeName: '',
   title: '',
   category: 'Contrato',
-  date: '',
   description: '',
-  fileName: '',
-  fileData: '',
+  file: null,
 };
 
 const Documents = () => {
   const [employees, setEmployees] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingDocuments, setLoadingDocuments] = useState(true);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todos');
   const [activeTab, setActiveTab] = useState('overview');
@@ -25,13 +23,8 @@ const Documents = () => {
 
   useEffect(() => {
     fetchEmployees();
-    const saved = localStorage.getItem('documents');
-    setDocuments(saved ? JSON.parse(saved) : []);
+    fetchDocuments();
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('documents', JSON.stringify(documents));
-  }, [documents]);
 
   const fetchEmployees = async () => {
     try {
@@ -43,6 +36,19 @@ const Documents = () => {
       setEmployees([]);
     } finally {
       setLoadingEmployees(false);
+    }
+  };
+
+  const fetchDocuments = async () => {
+    try {
+      setLoadingDocuments(true);
+      const res = await api.get('/documents');
+      setDocuments(res.data?.documents || []);
+    } catch (error) {
+      console.error('Erro ao buscar documentos:', error);
+      setDocuments([]);
+    } finally {
+      setLoadingDocuments(false);
     }
   };
 
@@ -59,75 +65,90 @@ const Documents = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    if (name === 'employeeId') {
-      const emp = employees.find((employee) => String(employee.id) === value);
-      setFormData((prev) => ({
-        ...prev,
-        employeeId: value,
-        employeeName: emp?.fullName || emp?.name || '',
-      }));
-      return;
-    }
-
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0] || null;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFormData((prev) => ({
-        ...prev,
-        fileName: file.name,
-        fileData: reader.result,
-      }));
-    };
-    reader.readAsDataURL(file);
+    setFormData((prev) => ({
+      ...prev,
+      file,
+    }));
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
 
-    if (!formData.employeeId || !formData.title || !formData.date) {
-      alert('Preencha os campos obrigatórios.');
+    if (
+      !formData.employeeId ||
+      !formData.title ||
+      !formData.category ||
+      !formData.file
+    ) {
+      alert('Preencha os campos obrigatórios e selecione um arquivo.');
       return;
     }
 
     try {
       setSaving(true);
 
-      const newDocument = {
-        id: Date.now(),
-        ...formData,
-        employeeId: Number(formData.employeeId),
-        createdAt: new Date().toISOString(),
-      };
+      const payload = new FormData();
+      payload.append('employeeId', formData.employeeId);
+      payload.append('title', formData.title);
+      payload.append('category', formData.category);
+      payload.append('description', formData.description || '');
+      payload.append('file', formData.file);
 
-      setDocuments((prev) => [newDocument, ...prev]);
+      await api.post('/documents', payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      await fetchDocuments();
       closeDrawer();
+    } catch (error) {
+      console.error('Erro ao cadastrar documento:', error);
+      alert(error?.response?.data?.message || 'Erro ao cadastrar documento.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmDelete = window.confirm('Deseja excluir este documento?');
     if (!confirmDelete) return;
 
-    setDocuments((prev) => prev.filter((item) => item.id !== id));
+    try {
+      await api.delete(`/documents/${id}`);
+      await fetchDocuments();
+    } catch (error) {
+      console.error('Erro ao excluir documento:', error);
+      alert(error?.response?.data?.message || 'Erro ao excluir documento.');
+    }
   };
 
-  const handleOpenFile = (fileData) => {
-    if (!fileData) return;
-    window.open(fileData, '_blank');
+  const handleOpenFile = (fileUrl) => {
+    if (!fileUrl) return;
+
+    const cleanBaseUrl = String(api.defaults.baseURL || '').replace(/\/$/, '');
+    const cleanFileUrl = String(fileUrl || '').startsWith('/')
+      ? fileUrl
+      : `/${fileUrl}`;
+
+    window.open(`${cleanBaseUrl}${cleanFileUrl}`, '_blank');
   };
 
   const filteredDocuments = useMemo(() => {
     return documents.filter((item) => {
+      const employeeName = item.employee?.name || item.employee?.fullName || '';
+
       const matchesSearch = `
-        ${item.employeeName || ''}
+        ${employeeName}
         ${item.title || ''}
         ${item.category || ''}
         ${item.description || ''}
@@ -161,6 +182,14 @@ const Documents = () => {
   };
 
   const renderOverview = () => {
+    if (loadingDocuments) {
+      return (
+        <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
+          Carregando documentos...
+        </div>
+      );
+    }
+
     if (filteredDocuments.length === 0) {
       return (
         <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
@@ -171,74 +200,79 @@ const Documents = () => {
 
     return (
       <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
-        {filteredDocuments.map((item) => (
-          <div
-            key={item.id}
-            className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
-          >
-            <div className='flex flex-col gap-4'>
-              <div className='flex items-start justify-between gap-4'>
-                <div>
-                  <h3 className='text-xl font-bold text-slate-800'>
-                    {item.title}
-                  </h3>
-                  <p className='mt-1 text-sm text-slate-500'>
-                    {item.employeeName}
-                  </p>
+        {filteredDocuments.map((item) => {
+          const employeeName =
+            item.employee?.name || item.employee?.fullName || 'Sem colaborador';
+
+          return (
+            <div
+              key={item.id}
+              className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
+            >
+              <div className='flex flex-col gap-4'>
+                <div className='flex items-start justify-between gap-4'>
+                  <div>
+                    <h3 className='text-xl font-bold text-slate-800'>
+                      {item.title}
+                    </h3>
+                    <p className='mt-1 text-sm text-slate-500'>
+                      {employeeName}
+                    </p>
+                  </div>
+
+                  <span className='inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700'>
+                    {item.category}
+                  </span>
                 </div>
 
-                <span className='inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700'>
-                  {item.category}
-                </span>
-              </div>
+                <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                  <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                    <p className='text-sm text-slate-500'>Data</p>
+                    <p className='mt-1 font-semibold text-slate-800'>
+                      {formatDate(item.createdAt)}
+                    </p>
+                  </div>
 
-              <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
-                  <p className='text-sm text-slate-500'>Data</p>
-                  <p className='mt-1 font-semibold text-slate-800'>
-                    {formatDate(item.date)}
-                  </p>
+                  <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                    <p className='text-sm text-slate-500'>Arquivo</p>
+                    <p className='mt-1 font-semibold text-slate-800 break-all'>
+                      {item.fileName || '-'}
+                    </p>
+                  </div>
                 </div>
 
-                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
-                  <p className='text-sm text-slate-500'>Arquivo</p>
-                  <p className='mt-1 font-semibold text-slate-800'>
-                    {item.fileName || '-'}
-                  </p>
-                </div>
-              </div>
-
-              {item.description ? (
-                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
-                  <p className='text-sm text-slate-500'>Descrição</p>
-                  <p className='mt-1 text-sm font-medium text-slate-700'>
-                    {item.description}
-                  </p>
-                </div>
-              ) : null}
-
-              <div className='flex flex-wrap gap-2 pt-2'>
-                {item.fileData ? (
-                  <button
-                    type='button'
-                    onClick={() => handleOpenFile(item.fileData)}
-                    className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100'
-                  >
-                    Ver arquivo
-                  </button>
+                {item.description ? (
+                  <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                    <p className='text-sm text-slate-500'>Descrição</p>
+                    <p className='mt-1 text-sm font-medium text-slate-700'>
+                      {item.description}
+                    </p>
+                  </div>
                 ) : null}
 
-                <button
-                  type='button'
-                  onClick={() => handleDelete(item.id)}
-                  className='rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100'
-                >
-                  Excluir
-                </button>
+                <div className='flex flex-wrap gap-2 pt-2'>
+                  {item.fileUrl ? (
+                    <button
+                      type='button'
+                      onClick={() => handleOpenFile(item.fileUrl)}
+                      className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100'
+                    >
+                      Ver arquivo
+                    </button>
+                  ) : null}
+
+                  <button
+                    type='button'
+                    onClick={() => handleDelete(item.id)}
+                    className='rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100'
+                  >
+                    Excluir
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -252,7 +286,11 @@ const Documents = () => {
           </h3>
         </div>
 
-        {filteredDocuments.length === 0 ? (
+        {loadingDocuments ? (
+          <div className='px-6 py-10 text-slate-500'>
+            Carregando documentos...
+          </div>
+        ) : filteredDocuments.length === 0 ? (
           <div className='px-6 py-10 text-slate-500'>
             Nenhum documento encontrado.
           </div>
@@ -283,46 +321,53 @@ const Documents = () => {
               </thead>
 
               <tbody className='divide-y divide-slate-100'>
-                {filteredDocuments.map((item) => (
-                  <tr key={item.id} className='hover:bg-slate-50/70'>
-                    <td className='px-6 py-5 font-semibold text-slate-800'>
-                      {item.employeeName}
-                    </td>
-                    <td className='px-6 py-5 text-sm text-slate-700'>
-                      {item.title}
-                    </td>
-                    <td className='px-6 py-5 text-sm text-slate-600'>
-                      {item.category}
-                    </td>
-                    <td className='px-6 py-5 text-sm text-slate-600'>
-                      {formatDate(item.date)}
-                    </td>
-                    <td className='px-6 py-5 text-sm text-slate-600'>
-                      {item.fileName || '-'}
-                    </td>
-                    <td className='px-6 py-5'>
-                      <div className='flex flex-wrap items-center justify-center gap-2'>
-                        {item.fileData ? (
+                {filteredDocuments.map((item) => {
+                  const employeeName =
+                    item.employee?.name ||
+                    item.employee?.fullName ||
+                    'Sem colaborador';
+
+                  return (
+                    <tr key={item.id} className='hover:bg-slate-50/70'>
+                      <td className='px-6 py-5 font-semibold text-slate-800'>
+                        {employeeName}
+                      </td>
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {item.title}
+                      </td>
+                      <td className='px-6 py-5 text-sm text-slate-600'>
+                        {item.category}
+                      </td>
+                      <td className='px-6 py-5 text-sm text-slate-600'>
+                        {formatDate(item.createdAt)}
+                      </td>
+                      <td className='px-6 py-5 text-sm text-slate-600 break-all'>
+                        {item.fileName || '-'}
+                      </td>
+                      <td className='px-6 py-5'>
+                        <div className='flex flex-wrap items-center justify-center gap-2'>
+                          {item.fileUrl ? (
+                            <button
+                              type='button'
+                              onClick={() => handleOpenFile(item.fileUrl)}
+                              className='rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100'
+                            >
+                              Ver
+                            </button>
+                          ) : null}
+
                           <button
                             type='button'
-                            onClick={() => handleOpenFile(item.fileData)}
-                            className='rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100'
+                            onClick={() => handleDelete(item.id)}
+                            className='rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100'
                           >
-                            Ver
+                            Excluir
                           </button>
-                        ) : null}
-
-                        <button
-                          type='button'
-                          onClick={() => handleDelete(item.id)}
-                          className='rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100'
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -561,19 +606,6 @@ const Documents = () => {
                         </select>
                       </div>
 
-                      <div>
-                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
-                          Data
-                        </label>
-                        <input
-                          type='date'
-                          name='date'
-                          value={formData.date}
-                          onChange={handleChange}
-                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
-                        />
-                      </div>
-
                       <div className='md:col-span-2'>
                         <label className='mb-2 block text-sm font-semibold text-slate-700'>
                           Arquivo
@@ -583,9 +615,9 @@ const Documents = () => {
                           onChange={handleFileChange}
                           className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium'
                         />
-                        {formData.fileName ? (
+                        {formData.file ? (
                           <p className='mt-2 text-xs text-slate-500'>
-                            Arquivo selecionado: {formData.fileName}
+                            Arquivo selecionado: {formData.file.name}
                           </p>
                         ) : null}
                       </div>

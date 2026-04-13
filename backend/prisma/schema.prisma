@@ -17,6 +17,7 @@ model Company {
   users         User[]
   employees     Employee[]
   uniformStocks UniformStock[]
+  documents     Document[]
 }
 
 model User {
@@ -60,6 +61,7 @@ model Employee {
   uniforms      UniformControl[]
   workHours     WorkHour[]
   workSchedules WorkSchedule[]
+  documents     Document[]
 
   @@unique([companyId, email])
   @@unique([companyId, cpf])
@@ -160,4 +162,23 @@ model WorkSchedule {
   updatedAt       DateTime @updatedAt
 
   employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  category    String
+  fileName    String
+  fileUrl     String
+  employeeId  Int?
+  companyId   Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([employeeId])
 }
