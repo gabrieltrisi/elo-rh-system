@@ -48,6 +48,7 @@ export const create = async (req, res, next) => {
       certificate,
     });
   } catch (error) {
+    console.error('ERRO AO CRIAR ATESTADO:', error);
     return next(error);
   }
 };
@@ -65,6 +66,7 @@ export const list = async (req, res, next) => {
       certificates,
     });
   } catch (error) {
+    console.error('ERRO AO BUSCAR ATESTADOS:', error);
     return next(error);
   }
 };
@@ -94,6 +96,7 @@ export const updateStatus = async (req, res, next) => {
       certificate: updated,
     });
   } catch (error) {
+    console.error('ERRO AO ATUALIZAR STATUS DO ATESTADO:', error);
     return next(error);
   }
 };
@@ -112,6 +115,7 @@ export const remove = async (req, res, next) => {
       message: 'Atestado excluído com sucesso',
     });
   } catch (error) {
+    console.error('ERRO AO EXCLUIR ATESTADO:', error);
     return next(error);
   }
 };

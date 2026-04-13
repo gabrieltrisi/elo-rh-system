@@ -26,11 +26,23 @@ const certificateSelect = {
   },
 };
 
+const ensureValidCompanyId = (companyId) => {
+  const normalizedCompanyId = Number(companyId);
+
+  if (!normalizedCompanyId || Number.isNaN(normalizedCompanyId)) {
+    throw new AppError('Empresa do usuário não identificada', 401);
+  }
+
+  return normalizedCompanyId;
+};
+
 const ensureEmployeeBelongsToCompany = async (employeeId, companyId) => {
+  const normalizedCompanyId = ensureValidCompanyId(companyId);
+
   const employee = await prisma.employee.findFirst({
     where: {
       id: Number(employeeId),
-      companyId: Number(companyId),
+      companyId: normalizedCompanyId,
     },
     select: employeeSelect,
   });
@@ -43,11 +55,13 @@ const ensureEmployeeBelongsToCompany = async (employeeId, companyId) => {
 };
 
 const ensureCertificateBelongsToCompany = async (certificateId, companyId) => {
+  const normalizedCompanyId = ensureValidCompanyId(companyId);
+
   const certificate = await prisma.certificate.findFirst({
     where: {
       id: Number(certificateId),
       employee: {
-        companyId: Number(companyId),
+        companyId: normalizedCompanyId,
       },
     },
     select: certificateSelect,
@@ -61,7 +75,9 @@ const ensureCertificateBelongsToCompany = async (certificateId, companyId) => {
 };
 
 export const createCertificateService = async (data, companyId) => {
-  await ensureEmployeeBelongsToCompany(data.employeeId, companyId);
+  const normalizedCompanyId = ensureValidCompanyId(companyId);
+
+  await ensureEmployeeBelongsToCompany(data.employeeId, normalizedCompanyId);
 
   return await prisma.certificate.create({
     data: {
@@ -79,10 +95,12 @@ export const createCertificateService = async (data, companyId) => {
 };
 
 export const getCertificatesService = async (companyId) => {
+  const normalizedCompanyId = ensureValidCompanyId(companyId);
+
   return await prisma.certificate.findMany({
     where: {
       employee: {
-        companyId: Number(companyId),
+        companyId: normalizedCompanyId,
       },
     },
     select: certificateSelect,
@@ -98,7 +116,9 @@ export const updateCertificateStatusService = async (
   managerNotes,
   companyId
 ) => {
-  await ensureCertificateBelongsToCompany(id, companyId);
+  const normalizedCompanyId = ensureValidCompanyId(companyId);
+
+  await ensureCertificateBelongsToCompany(id, normalizedCompanyId);
 
   return await prisma.certificate.update({
     where: {
@@ -113,7 +133,9 @@ export const updateCertificateStatusService = async (
 };
 
 export const deleteCertificateService = async (id, companyId) => {
-  await ensureCertificateBelongsToCompany(id, companyId);
+  const normalizedCompanyId = ensureValidCompanyId(companyId);
+
+  await ensureCertificateBelongsToCompany(id, normalizedCompanyId);
 
   await prisma.certificate.delete({
     where: {

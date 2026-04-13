@@ -31,14 +31,16 @@ const authMiddleware = (req, res, next) => {
       process.env.JWT_SECRET || 'minha_chave_secreta'
     );
 
+    const companyId =
+      decoded.companyId !== undefined && decoded.companyId !== null
+        ? Number(decoded.companyId)
+        : null;
+
     req.user = {
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role,
-      companyId:
-        decoded.companyId !== undefined && decoded.companyId !== null
-          ? Number(decoded.companyId)
-          : null,
+      companyId,
     };
 
     if (!req.user.companyId) {
