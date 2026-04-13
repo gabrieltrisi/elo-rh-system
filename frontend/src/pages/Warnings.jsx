@@ -11,10 +11,25 @@ const initialForm = {
   description: '',
 };
 
+const mapWarningFromApi = (item) => {
+  return {
+    id: item.id,
+    employeeId: item.employeeId,
+    employeeName: item.employee?.name || item.employeeName || '',
+    title: item.title || '',
+    type: item.type || 'Advertência verbal',
+    date: item.warningDate || '',
+    status: item.status || 'Registrada',
+    description: item.description || '',
+    createdAt: item.createdAt || '',
+  };
+};
+
 const Warnings = () => {
   const [employees, setEmployees] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingWarnings, setLoadingWarnings] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [typeFilter, setTypeFilter] = useState('Todos');
@@ -28,17 +43,13 @@ const Warnings = () => {
     loadWarnings();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('warnings', JSON.stringify(warnings));
-  }, [warnings]);
-
   const fetchEmployees = async () => {
     try {
       setLoadingEmployees(true);
 
       const res = await api.get('/employees');
 
-      setEmployees(res.data.employees || []);
+      setEmployees(res.data?.employees || res.data || []);
     } catch (err) {
       console.error('Erro ao buscar colaboradores:', err);
       setEmployees([]);
@@ -47,9 +58,21 @@ const Warnings = () => {
     }
   };
 
-  const loadWarnings = () => {
-    const saved = localStorage.getItem('warnings');
-    setWarnings(saved ? JSON.parse(saved) : []);
+  const loadWarnings = async () => {
+    try {
+      setLoadingWarnings(true);
+
+      const res = await api.get('/warnings');
+      const rawWarnings = res.data?.warnings || [];
+      const normalizedWarnings = rawWarnings.map(mapWarningFromApi);
+
+      setWarnings(normalizedWarnings);
+    } catch (err) {
+      console.error('Erro ao buscar advertências:', err);
+      setWarnings([]);
+    } finally {
+      setLoadingWarnings(false);
+    }
   };
 
   const openDrawer = () => {
@@ -79,7 +102,7 @@ const Warnings = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
 
     if (
@@ -95,27 +118,39 @@ const Warnings = () => {
     try {
       setSaving(true);
 
-      const newWarning = {
-        ...formData,
-        id: Date.now(),
-        createdAt: new Date().toISOString(),
-      };
+      await api.post('/warnings', {
+        employeeId: Number(formData.employeeId),
+        title: formData.title,
+        type: formData.type,
+        warningDate: formData.date,
+        status: formData.status,
+        description: formData.description,
+      });
 
-      setWarnings((prev) => [newWarning, ...prev]);
+      await loadWarnings();
       closeDrawer();
+    } catch (err) {
+      console.error('Erro ao salvar advertência:', err);
+      alert(err?.response?.data?.message || 'Erro ao salvar advertência.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmDelete = window.confirm(
       'Deseja realmente excluir esta advertência?'
     );
 
     if (!confirmDelete) return;
 
-    setWarnings((prev) => prev.filter((item) => item.id !== id));
+    try {
+      await api.delete(`/warnings/${id}`);
+      await loadWarnings();
+    } catch (err) {
+      console.error('Erro ao excluir advertência:', err);
+      alert(err?.response?.data?.message || 'Erro ao excluir advertência.');
+    }
   };
 
   const filtered = useMemo(() => {
@@ -195,6 +230,14 @@ const Warnings = () => {
   };
 
   const renderOverviewTab = () => {
+    if (loadingWarnings) {
+      return (
+        <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
+          Carregando advertências...
+        </div>
+      );
+    }
+
     if (filtered.length === 0) {
       return (
         <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
@@ -280,7 +323,11 @@ const Warnings = () => {
           </h3>
         </div>
 
-        {filtered.length === 0 ? (
+        {loadingWarnings ? (
+          <div className='px-6 py-10 text-slate-500'>
+            Carregando advertências...
+          </div>
+        ) : filtered.length === 0 ? (
           <div className='px-6 py-10 text-slate-500'>
             Nenhuma advertência encontrada.
           </div>

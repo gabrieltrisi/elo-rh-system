@@ -11,6 +11,7 @@ import uniformRoutes from './routes/uniformRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import workScheduleRoutes from './routes/workScheduleRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
+import warningRoutes from './routes/warningRoutes.js'; // ✅ NOVO
 
 const app = express();
 
@@ -47,12 +48,10 @@ const isAllowedVercelOrigin = (origin) => {
 app.use(
   cors({
     origin(origin, callback) {
-      // permite chamadas internas (ex: Postman)
       if (!origin) {
         return callback(null, true);
       }
 
-      // libera localhost + env + vercel
       if (allowedOrigins.includes(origin) || isAllowedVercelOrigin(origin)) {
         return callback(null, true);
       }
@@ -92,6 +91,7 @@ app.use('/uniforms', uniformRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/work-schedules', workScheduleRoutes);
 app.use('/documents', documentRoutes);
+app.use('/warnings', warningRoutes); // ✅ NOVO
 
 // 🔥 404
 app.use((req, res) => {

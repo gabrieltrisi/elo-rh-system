@@ -18,6 +18,7 @@ model Company {
   employees     Employee[]
   uniformStocks UniformStock[]
   documents     Document[]
+  warnings      Warning[]
 }
 
 model User {
@@ -62,6 +63,7 @@ model Employee {
   workHours     WorkHour[]
   workSchedules WorkSchedule[]
   documents     Document[]
+  warnings      Warning[]
 
   @@unique([companyId, email])
   @@unique([companyId, cpf])
@@ -181,4 +183,23 @@ model Document {
 
   @@index([companyId])
   @@index([employeeId])
+}
+
+model Warning {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  title       String
+  type        String
+  warningDate DateTime
+  status      String   @default("Registrada")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([companyId])
 }
