@@ -15,10 +15,60 @@ const initialForm = {
   attachmentData: '',
 };
 
+const parseManagerNotes = (value) => {
+  if (!value) {
+    return {
+      type: 'Atestado médico',
+      cid: '',
+      description: '',
+      attachmentName: '',
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return {
+      type: parsed.type || 'Atestado médico',
+      cid: parsed.cid || '',
+      description: parsed.description || '',
+      attachmentName: parsed.attachmentName || '',
+    };
+  } catch {
+    return {
+      type: 'Atestado médico',
+      cid: '',
+      description: value || '',
+      attachmentName: '',
+    };
+  }
+};
+
+const mapCertificateFromApi = (item) => {
+  const notes = parseManagerNotes(item.managerNotes);
+
+  return {
+    id: item.id,
+    employeeId: item.employeeId,
+    employeeName: item.employee?.name || item.employeeName || '',
+    title: item.title || '',
+    type: notes.type || 'Atestado médico',
+    cid: notes.cid || '',
+    date: item.startDate || '',
+    days: item.days || 0,
+    status: item.status || 'Registrado',
+    description: notes.description || '',
+    attachmentName: notes.attachmentName || '',
+    attachmentData: item.fileUrl || '',
+    createdAt: item.createdAt || '',
+  };
+};
+
 const Certificates = () => {
   const [employees, setEmployees] = useState([]);
   const [certificates, setCertificates] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingCertificates, setLoadingCertificates] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [typeFilter, setTypeFilter] = useState('Todos');
@@ -31,10 +81,6 @@ const Certificates = () => {
     fetchEmployees();
     loadCertificates();
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('certificates', JSON.stringify(certificates));
-  }, [certificates]);
 
   const fetchEmployees = async () => {
     try {
@@ -51,9 +97,21 @@ const Certificates = () => {
     }
   };
 
-  const loadCertificates = () => {
-    const saved = localStorage.getItem('certificates');
-    setCertificates(saved ? JSON.parse(saved) : []);
+  const loadCertificates = async () => {
+    try {
+      setLoadingCertificates(true);
+
+      const res = await api.get('/certificates');
+      const rawCertificates = res.data?.certificates || res.data || [];
+      const normalizedCertificates = rawCertificates.map(mapCertificateFromApi);
+
+      setCertificates(normalizedCertificates);
+    } catch (err) {
+      console.error('Erro ao buscar atestados:', err);
+      setCertificates([]);
+    } finally {
+      setLoadingCertificates(false);
+    }
   };
 
   const openDrawer = () => {
@@ -106,7 +164,7 @@ const Certificates = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
 
     if (
@@ -123,37 +181,50 @@ const Certificates = () => {
     try {
       setSaving(true);
 
-      const newCertificate = {
-        id: Date.now(),
-        employeeId: Number(formData.employeeId),
-        employeeName: formData.employeeName,
-        title: formData.title,
+      const managerNotes = JSON.stringify({
         type: formData.type,
         cid: formData.cid,
-        date: formData.date,
-        days: Number(formData.days),
-        status: formData.status,
         description: formData.description,
         attachmentName: formData.attachmentName,
-        attachmentData: formData.attachmentData,
-        createdAt: new Date().toISOString(),
+      });
+
+      const payload = {
+        employeeId: Number(formData.employeeId),
+        title: formData.title,
+        startDate: formData.date,
+        endDate: formData.date,
+        days: Number(formData.days),
+        fileUrl: formData.attachmentData || '',
+        status: formData.status,
+        managerNotes,
       };
 
-      setCertificates((prev) => [newCertificate, ...prev]);
+      await api.post('/certificates', payload);
+
+      await loadCertificates();
       closeDrawer();
+    } catch (error) {
+      console.error('Erro ao cadastrar atestado:', error);
+      alert(error?.response?.data?.message || 'Erro ao cadastrar atestado.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmDelete = window.confirm(
       'Deseja realmente excluir este atestado?'
     );
 
     if (!confirmDelete) return;
 
-    setCertificates((prev) => prev.filter((item) => item.id !== id));
+    try {
+      await api.delete(`/certificates/${id}`);
+      await loadCertificates();
+    } catch (error) {
+      console.error('Erro ao excluir atestado:', error);
+      alert(error?.response?.data?.message || 'Erro ao excluir atestado.');
+    }
   };
 
   const handleOpenPdf = (attachmentData) => {
@@ -243,6 +314,14 @@ const Certificates = () => {
   };
 
   const renderOverviewTab = () => {
+    if (loadingCertificates) {
+      return (
+        <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
+          Carregando atestados...
+        </div>
+      );
+    }
+
     if (filteredCertificates.length === 0) {
       return (
         <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
@@ -352,7 +431,11 @@ const Certificates = () => {
           </h3>
         </div>
 
-        {filteredCertificates.length === 0 ? (
+        {loadingCertificates ? (
+          <div className='px-6 py-10 text-slate-500'>
+            Carregando atestados...
+          </div>
+        ) : filteredCertificates.length === 0 ? (
           <div className='px-6 py-10 text-slate-500'>
             Nenhum atestado encontrado.
           </div>

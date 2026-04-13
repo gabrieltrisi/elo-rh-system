@@ -1,42 +1,117 @@
 import {
-  createCertificate,
-  getCertificates,
-  updateCertificateStatus,
+  createCertificateService,
+  getCertificatesService,
+  updateCertificateStatusService,
+  deleteCertificateService,
 } from '../services/certificateService.js';
+import AppError from '../errors/AppError.js';
 
-export const create = async (req, res) => {
+export const create = async (req, res, next) => {
   try {
-    const certificate = await createCertificate({
-      ...req.body,
-      fileUrl: req.file ? `/uploads/certificates/${req.file.filename}` : null,
+    if (!req.user?.companyId) {
+      return next(new AppError('Empresa do usuário não identificada', 401));
+    }
+
+    const {
+      employeeId,
+      title,
+      startDate,
+      endDate,
+      days,
+      status,
+      managerNotes,
+      fileUrl,
+    } = req.body;
+
+    if (!employeeId || !title || !startDate || !endDate || !days) {
+      return next(new AppError('Preencha os campos obrigatórios', 400));
+    }
+
+    const certificate = await createCertificateService(
+      {
+        employeeId: Number(employeeId),
+        title,
+        startDate,
+        endDate,
+        days: Number(days),
+        status: status || 'Registrado',
+        managerNotes: managerNotes || null,
+        fileUrl: req.file
+          ? `/uploads/certificates/${req.file.filename}`
+          : fileUrl || null,
+      },
+      req.user.companyId
+    );
+
+    return res.status(201).json({
+      message: 'Atestado cadastrado com sucesso',
+      certificate,
     });
-
-    res.status(201).json(certificate);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao criar atestado' });
+    return next(error);
   }
 };
 
-export const list = async (req, res) => {
+export const list = async (req, res, next) => {
   try {
-    const certificates = await getCertificates();
-    res.json(certificates);
+    if (!req.user?.companyId) {
+      return next(new AppError('Empresa do usuário não identificada', 401));
+    }
+
+    const certificates = await getCertificatesService(req.user.companyId);
+
+    return res.status(200).json({
+      message: 'Atestados encontrados com sucesso',
+      certificates,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar atestados' });
+    return next(error);
   }
 };
 
-export const updateStatus = async (req, res) => {
+export const updateStatus = async (req, res, next) => {
   try {
+    if (!req.user?.companyId) {
+      return next(new AppError('Empresa do usuário não identificada', 401));
+    }
+
     const { id } = req.params;
     const { status, managerNotes } = req.body;
 
-    const updated = await updateCertificateStatus(id, status, managerNotes);
-    res.json(updated);
+    if (!status) {
+      return next(new AppError('Status é obrigatório', 400));
+    }
+
+    const updated = await updateCertificateStatusService(
+      Number(id),
+      status,
+      managerNotes || null,
+      req.user.companyId
+    );
+
+    return res.status(200).json({
+      message: 'Status do atestado atualizado com sucesso',
+      certificate: updated,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao atualizar status' });
+    return next(error);
+  }
+};
+
+export const remove = async (req, res, next) => {
+  try {
+    if (!req.user?.companyId) {
+      return next(new AppError('Empresa do usuário não identificada', 401));
+    }
+
+    const { id } = req.params;
+
+    await deleteCertificateService(Number(id), req.user.companyId);
+
+    return res.status(200).json({
+      message: 'Atestado excluído com sucesso',
+    });
+  } catch (error) {
+    return next(error);
   }
 };
