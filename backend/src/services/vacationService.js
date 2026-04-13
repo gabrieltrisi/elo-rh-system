@@ -1,200 +1,159 @@
 import prisma from '../prisma/client.js';
 import AppError from '../errors/AppError.js';
 
-const parseDateField = (value, fieldName) => {
-  if (!value) {
-    throw new AppError(`${fieldName} é obrigatório`, 400);
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    throw new AppError(`${fieldName} inválida`, 400);
-  }
-
-  return date;
+const employeeSelect = {
+  id: true,
+  name: true,
+  email: true,
+  department: true,
+  status: true,
 };
 
-const ensureEmployeeFromCompany = async (employeeId, companyId) => {
+const ensureEmployeeBelongsToCompany = async (employeeId, companyId) => {
   const employee = await prisma.employee.findFirst({
     where: {
       id: employeeId,
       companyId,
     },
+    select: employeeSelect,
   });
 
   if (!employee) {
-    throw new AppError('Colaborador não encontrado', 404);
+    throw new AppError('Colaborador não encontrado para esta empresa', 404);
   }
 
   return employee;
 };
 
-export const createVacationService = async (data, companyId) => {
-  const employeeId = Number(data.employeeId);
-  const startDate = parseDateField(data.startDate, 'Data de início');
-  const endDate = parseDateField(data.endDate, 'Data de fim');
-  const days = Number(data.days);
-
-  await ensureEmployeeFromCompany(employeeId, companyId);
-
-  if (!days || days <= 0) {
-    throw new AppError('Quantidade de dias inválida', 400);
-  }
-
-  if (startDate > endDate) {
-    throw new AppError('A data inicial não pode ser maior que a final', 400);
-  }
-
-  const overlap = await prisma.vacation.findFirst({
+const ensureVacationBelongsToCompany = async (vacationId, companyId) => {
+  const vacation = await prisma.vacation.findFirst({
     where: {
-      employeeId,
+      id: vacationId,
       employee: {
         companyId,
       },
-      AND: [{ startDate: { lte: endDate } }, { endDate: { gte: startDate } }],
-    },
-  });
-
-  if (overlap) {
-    throw new AppError(
-      'Já existe férias nesse período para esse colaborador',
-      400
-    );
-  }
-
-  return await prisma.vacation.create({
-    data: {
-      employeeId,
-      acquisitionPeriod: data.acquisitionPeriod,
-      startDate,
-      endDate,
-      days,
-      status: data.status || 'PENDENTE',
     },
     include: {
-      employee: true,
+      employee: {
+        select: employeeSelect,
+      },
     },
   });
+
+  if (!vacation) {
+    throw new AppError('Registro de férias não encontrado', 404);
+  }
+
+  return vacation;
+};
+
+export const createVacationService = async (data, companyId) => {
+  await ensureEmployeeBelongsToCompany(data.employeeId, companyId);
+
+  const vacation = await prisma.vacation.create({
+    data: {
+      employeeId: data.employeeId,
+      acquisitionPeriod: data.acquisitionPeriod,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      days: data.days,
+      status: data.status,
+    },
+    include: {
+      employee: {
+        select: employeeSelect,
+      },
+    },
+  });
+
+  return vacation;
 };
 
 export const getAllVacationsService = async (companyId) => {
-  return await prisma.vacation.findMany({
+  const vacations = await prisma.vacation.findMany({
     where: {
       employee: {
         companyId,
       },
     },
     include: {
-      employee: true,
+      employee: {
+        select: employeeSelect,
+      },
     },
-    orderBy: { id: 'desc' },
+    orderBy: [
+      {
+        startDate: 'desc',
+      },
+      {
+        id: 'desc',
+      },
+    ],
   });
+
+  return vacations;
 };
 
 export const getVacationsByEmployeeService = async (employeeId, companyId) => {
-  const id = Number(employeeId);
+  await ensureEmployeeBelongsToCompany(employeeId, companyId);
 
-  await ensureEmployeeFromCompany(id, companyId);
-
-  return await prisma.vacation.findMany({
+  const vacations = await prisma.vacation.findMany({
     where: {
-      employeeId: id,
+      employeeId,
       employee: {
         companyId,
       },
     },
     include: {
-      employee: true,
+      employee: {
+        select: employeeSelect,
+      },
     },
-    orderBy: { id: 'desc' },
+    orderBy: [
+      {
+        startDate: 'desc',
+      },
+      {
+        id: 'desc',
+      },
+    ],
   });
+
+  return vacations;
 };
 
 export const updateVacationService = async (vacationId, data, companyId) => {
-  const id = Number(vacationId);
-  const employeeId = Number(data.employeeId);
-  const startDate = parseDateField(data.startDate, 'Data de início');
-  const endDate = parseDateField(data.endDate, 'Data de fim');
-  const days = Number(data.days);
+  await ensureVacationBelongsToCompany(vacationId, companyId);
+  await ensureEmployeeBelongsToCompany(data.employeeId, companyId);
 
-  const vacationExists = await prisma.vacation.findFirst({
+  const vacation = await prisma.vacation.update({
     where: {
-      id,
-      employee: {
-        companyId,
-      },
+      id: vacationId,
     },
-    include: {
-      employee: true,
-    },
-  });
-
-  if (!vacationExists) {
-    throw new AppError('Registro de férias não encontrado', 404);
-  }
-
-  await ensureEmployeeFromCompany(employeeId, companyId);
-
-  if (!days || days <= 0) {
-    throw new AppError('Quantidade de dias inválida', 400);
-  }
-
-  if (startDate > endDate) {
-    throw new AppError('A data inicial não pode ser maior que a final', 400);
-  }
-
-  const overlap = await prisma.vacation.findFirst({
-    where: {
-      id: { not: id },
-      employeeId,
-      employee: {
-        companyId,
-      },
-      AND: [{ startDate: { lte: endDate } }, { endDate: { gte: startDate } }],
-    },
-  });
-
-  if (overlap) {
-    throw new AppError(
-      'Já existe férias nesse período para esse colaborador',
-      400
-    );
-  }
-
-  return await prisma.vacation.update({
-    where: { id },
     data: {
-      employeeId,
+      employeeId: data.employeeId,
       acquisitionPeriod: data.acquisitionPeriod,
-      startDate,
-      endDate,
-      days,
-      status: data.status || 'PENDENTE',
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      days: data.days,
+      status: data.status,
     },
     include: {
-      employee: true,
+      employee: {
+        select: employeeSelect,
+      },
     },
   });
+
+  return vacation;
 };
 
 export const deleteVacationService = async (vacationId, companyId) => {
-  const id = Number(vacationId);
-
-  const vacationExists = await prisma.vacation.findFirst({
-    where: {
-      id,
-      employee: {
-        companyId,
-      },
-    },
-  });
-
-  if (!vacationExists) {
-    throw new AppError('Registro de férias não encontrado', 404);
-  }
+  await ensureVacationBelongsToCompany(vacationId, companyId);
 
   await prisma.vacation.delete({
-    where: { id },
+    where: {
+      id: vacationId,
+    },
   });
 };

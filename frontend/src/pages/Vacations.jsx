@@ -23,6 +23,8 @@ function Vacations() {
   const [employeeFilter, setEmployeeFilter] = useState('TODOS');
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingVacations, setLoadingVacations] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
   useEffect(() => {
     fetchVacations();
@@ -31,21 +33,35 @@ function Vacations() {
 
   const fetchVacations = async () => {
     try {
+      setLoadingVacations(true);
       const response = await api.get('/vacations');
-      setVacations(response.data.vacations || []);
+      setVacations(
+        Array.isArray(response.data?.vacations) ? response.data.vacations : []
+      );
     } catch (error) {
-      console.error(error);
-      toast.error('Erro ao carregar férias');
+      console.error('VACATIONS FETCH ERROR:', error);
+      toast.error(error.response?.data?.message || 'Erro ao carregar férias');
+      setVacations([]);
+    } finally {
+      setLoadingVacations(false);
     }
   };
 
   const fetchEmployees = async () => {
     try {
+      setLoadingEmployees(true);
       const response = await api.get('/employees');
-      setEmployees(response.data.employees || []);
+      setEmployees(
+        Array.isArray(response.data?.employees) ? response.data.employees : []
+      );
     } catch (error) {
-      console.error(error);
-      toast.error('Erro ao carregar colaboradores');
+      console.error('EMPLOYEES FETCH ERROR:', error);
+      toast.error(
+        error.response?.data?.message || 'Erro ao carregar colaboradores'
+      );
+      setEmployees([]);
+    } finally {
+      setLoadingEmployees(false);
     }
   };
 
@@ -65,10 +81,10 @@ function Vacations() {
   };
 
   const handleChange = (e) => {
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   const handleEdit = (vacation) => {
@@ -101,7 +117,7 @@ function Vacations() {
 
     const payload = {
       employeeId: Number(form.employeeId),
-      acquisitionPeriod: form.acquisitionPeriod,
+      acquisitionPeriod: form.acquisitionPeriod.trim(),
       startDate: form.startDate,
       endDate: form.endDate,
       days: Number(form.days),
@@ -121,10 +137,10 @@ function Vacations() {
 
       resetForm();
       setIsCreateDrawerOpen(false);
-      fetchVacations();
+      await fetchVacations();
       setActiveTab('lista');
     } catch (error) {
-      console.error(error);
+      console.error('VACATION SUBMIT ERROR:', error);
       toast.error(
         error.response?.data?.message ||
           `Erro ao ${editingId ? 'atualizar' : 'cadastrar'} férias`
@@ -146,9 +162,9 @@ function Vacations() {
       }
 
       setVacationToDelete(null);
-      fetchVacations();
+      await fetchVacations();
     } catch (error) {
-      console.error(error);
+      console.error('VACATION DELETE ERROR:', error);
       toast.error(error.response?.data?.message || 'Erro ao excluir férias');
     }
   };
@@ -334,6 +350,7 @@ function Vacations() {
                     value={employeeFilter}
                     onChange={(e) => setEmployeeFilter(e.target.value)}
                     className='w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                    disabled={loadingEmployees}
                   >
                     <option value='TODOS'>Todos</option>
                     {employees.map((employee) => (
@@ -356,7 +373,11 @@ function Vacations() {
                 </p>
               </div>
 
-              {filteredVacations.length === 0 ? (
+              {loadingVacations ? (
+                <div className='px-6 py-12 text-center text-slate-500'>
+                  Carregando férias...
+                </div>
+              ) : filteredVacations.length === 0 ? (
                 <div className='px-6 py-12 text-center text-slate-500'>
                   Nenhum registro de férias encontrado.
                 </div>
@@ -429,6 +450,7 @@ function Vacations() {
                           <td className='px-6 py-5'>
                             <div className='flex flex-wrap items-center justify-center gap-2'>
                               <button
+                                type='button'
                                 onClick={() => handleEdit(vacation)}
                                 className='rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100'
                               >
@@ -436,6 +458,7 @@ function Vacations() {
                               </button>
 
                               <button
+                                type='button'
                                 onClick={() => setVacationToDelete(vacation)}
                                 className='rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100'
                               >
@@ -525,6 +548,7 @@ function Vacations() {
                           value={form.employeeId}
                           onChange={handleChange}
                           className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200'
+                          disabled={loadingEmployees}
                         >
                           <option value=''>Selecione o colaborador</option>
                           {employees.map((employee) => (
@@ -655,6 +679,7 @@ function Vacations() {
 
             <div className='mt-6 flex justify-end gap-3'>
               <button
+                type='button'
                 onClick={() => setVacationToDelete(null)}
                 className='rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50'
               >
@@ -662,6 +687,7 @@ function Vacations() {
               </button>
 
               <button
+                type='button'
                 onClick={handleDelete}
                 className='rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700'
               >

@@ -10,10 +10,12 @@ import {
 
 const router = express.Router();
 
-router.post('/', authMiddleware, createVacation);
-router.get('/', authMiddleware, getAllVacations);
-router.get('/employee/:employeeId', authMiddleware, getVacationsByEmployee);
-router.put('/:id', authMiddleware, updateVacation);
-router.delete('/:id', authMiddleware, deleteVacation);
+router.use(authMiddleware);
+
+router.get('/', getAllVacations);
+router.get('/employee/:employeeId', getVacationsByEmployee);
+router.post('/', createVacation);
+router.put('/:id', updateVacation);
+router.delete('/:id', deleteVacation);
 
 export default router;
