@@ -32,6 +32,18 @@ export const getDashboardService = async (companyId) => {
     },
   });
 
+  const leaves = await prisma.leave.findMany({
+    where: {
+      companyId,
+    },
+    include: {
+      employee: true,
+    },
+    orderBy: {
+      startDate: 'asc',
+    },
+  });
+
   const pendingCertificates = await prisma.certificate.count({
     where: {
       employee: {
@@ -80,6 +92,8 @@ export const getDashboardService = async (companyId) => {
   const upcomingVacations = [];
   const returningFromVacation = [];
   const birthdaysThisMonth = [];
+  const activeLeaves = [];
+  const returningFromLeave = [];
 
   for (const vacation of vacations) {
     const employeeName = normalizeEmployeeName(vacation.employee);
@@ -107,6 +121,43 @@ export const getDashboardService = async (companyId) => {
         id: vacation.id,
         employeeId: vacation.employeeId,
         employeeName,
+        endDate,
+        daysUntilEnd,
+      });
+    }
+  }
+
+  for (const leave of leaves) {
+    const employeeName = normalizeEmployeeName(leave.employee);
+
+    if (!leave.startDate || !leave.endDate) continue;
+
+    const startDate = new Date(leave.startDate);
+    const endDate = new Date(leave.endDate);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      continue;
+    }
+
+    const isActive = today >= startDate && today <= endDate;
+    const daysUntilEnd = differenceInDays(endDate, today);
+
+    if (isActive) {
+      activeLeaves.push({
+        id: leave.id,
+        employeeId: leave.employeeId,
+        employeeName,
+        type: leave.type,
+        endDate,
+      });
+    }
+
+    if (daysUntilEnd >= 0 && daysUntilEnd <= 7) {
+      returningFromLeave.push({
+        id: leave.id,
+        employeeId: leave.employeeId,
+        employeeName,
+        type: leave.type,
         endDate,
         daysUntilEnd,
       });
@@ -167,6 +218,37 @@ export const getDashboardService = async (companyId) => {
       });
     });
 
+  if (activeLeaves.length > 0) {
+    alerts.push({
+      id: 'leaves-active',
+      type: 'leave_active',
+      priority: activeLeaves.length >= 3 ? 'high' : 'medium',
+      title: 'Afastamentos ativos',
+      description: `${activeLeaves.length} colaborador(es) estão afastados no momento`,
+      page: 'leave',
+      tone: activeLeaves.length >= 3 ? 'red' : 'amber',
+    });
+  }
+
+  returningFromLeave
+    .sort((a, b) => a.daysUntilEnd - b.daysUntilEnd)
+    .slice(0, 5)
+    .forEach((item) => {
+      alerts.push({
+        id: `leave-return-${item.id}`,
+        type: 'leave_return',
+        priority: item.daysUntilEnd <= 2 ? 'high' : 'medium',
+        title: 'Retorno de afastamento',
+        description:
+          item.daysUntilEnd === 0
+            ? `${item.employeeName} retorna de afastamento hoje`
+            : `${item.employeeName} retorna de afastamento em ${item.daysUntilEnd} dia(s)`,
+        employeeId: item.employeeId,
+        page: 'leave',
+        tone: item.daysUntilEnd <= 2 ? 'red' : 'blue',
+      });
+    });
+
   if (pendingCertificates > 0) {
     alerts.push({
       id: 'certificates-pending',
@@ -212,6 +294,8 @@ export const getDashboardService = async (companyId) => {
   const summary = {
     employees: employees.length,
     vacations: vacations.length,
+    leaves: leaves.length,
+    activeLeaves: activeLeaves.length,
     uniformsDelivered,
     stockLow,
     pendingCertificates,
