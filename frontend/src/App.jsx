@@ -48,36 +48,40 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [page, setPage] = useState('dashboard');
   const [pendingCertificates, setPendingCertificates] = useState(0);
+  const [warningCount, setWarningCount] = useState(0);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setIsAuthenticated(false);
     setPage('dashboard');
+    setPendingCertificates(0);
+    setWarningCount(0);
   };
 
   const fetchPendingCertificates = async () => {
     try {
       const response = await api.get('/dashboard');
-
       setPendingCertificates(response.data.dashboard?.pendingCertificates || 0);
     } catch (error) {
       console.error('Erro ao carregar pendências do dashboard:', error);
-
-      try {
-        const savedCertificates =
-          JSON.parse(localStorage.getItem('certificates')) || [];
-
-        const totalPending = savedCertificates.filter(
-          (item) => (item.status || '').toLowerCase() === 'registrado'
-        ).length;
-
-        setPendingCertificates(totalPending);
-      } catch (localError) {
-        console.error('Erro ao carregar pendências locais:', localError);
-        setPendingCertificates(0);
-      }
+      setPendingCertificates(0);
     }
+  };
+
+  const fetchWarningsCount = async () => {
+    try {
+      const response = await api.get('/warnings');
+      const warnings = response.data?.warnings || [];
+      setWarningCount(Array.isArray(warnings) ? warnings.length : 0);
+    } catch (error) {
+      console.error('Erro ao carregar advertências:', error);
+      setWarningCount(0);
+    }
+  };
+
+  const fetchAppBadges = async () => {
+    await Promise.all([fetchPendingCertificates(), fetchWarningsCount()]);
   };
 
   useEffect(() => {
@@ -87,7 +91,7 @@ function App() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchPendingCertificates();
+      fetchAppBadges();
     }
   }, [isAuthenticated, page]);
 
@@ -117,6 +121,7 @@ function App() {
         onNavigate={setPage}
         currentPage={page}
         pendingCertificates={pendingCertificates}
+        warningCount={warningCount}
       >
         {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
         {page === 'employees' && <Employees />}

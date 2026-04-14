@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import logoElo from '../assets/logo-elo.jpeg.png';
 
@@ -8,6 +8,7 @@ function Layout({
   onNavigate,
   currentPage,
   pendingCertificates = 0,
+  warningCount = 0,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState({
@@ -25,17 +26,6 @@ function Layout({
       [groupKey]: !prev[groupKey],
     }));
   };
-
-  const warningCount = useMemo(() => {
-    try {
-      const saved = localStorage.getItem('warnings');
-      const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed.length : 0;
-    } catch (error) {
-      console.error('Erro ao ler warnings do localStorage:', error);
-      return 0;
-    }
-  }, [currentPage]);
 
   const groups = [
     {

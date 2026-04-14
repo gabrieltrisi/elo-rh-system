@@ -41,21 +41,69 @@ function Dashboard({ onNavigate }) {
 
   useEffect(() => {
     fetchData();
-    loadLocal();
+    loadLocalModules();
   }, []);
+
+  const mapCertificateFromApi = (item) => ({
+    id: item.id,
+    employeeId: item.employeeId,
+    employeeName: item.employee?.name || '',
+    title: item.title || '',
+    type: item.type || 'Atestado médico',
+    cid: item.cid || '',
+    date: item.startDate || '',
+    startDate: item.startDate || '',
+    endDate: item.endDate || '',
+    days: item.days || 0,
+    status: item.status || 'Registrado',
+    description: item.managerNotes || '',
+    attachmentName: item.fileUrl || '',
+    attachmentData: item.fileUrl || '',
+    createdAt: item.createdAt || '',
+  });
+
+  const mapWarningFromApi = (item) => ({
+    id: item.id,
+    employeeId: item.employeeId,
+    employeeName: item.employee?.name || '',
+    title: item.title || '',
+    type: item.type || 'Advertência verbal',
+    date: item.warningDate || '',
+    warningDate: item.warningDate || '',
+    status: item.status || 'Registrada',
+    description: item.description || '',
+    createdAt: item.createdAt || '',
+  });
+
+  const mapDocumentFromApi = (item) => ({
+    id: item.id,
+    title: item.title || '',
+    description: item.description || '',
+    category: item.category || '',
+    fileName: item.fileName || '',
+    fileUrl: item.fileUrl || '',
+    employeeId: item.employeeId || null,
+    employeeName: item.employee?.name || '',
+    createdAt: item.createdAt || '',
+    updatedAt: item.updatedAt || '',
+    status: item.status || '',
+  });
 
   const fetchData = async () => {
     try {
-      const [emp, vac, dash] = await Promise.all([
+      const [emp, vac, dash, cert, warn, docs] = await Promise.all([
         api.get('/employees'),
         api.get('/vacations'),
         api.get('/dashboard'),
+        api.get('/certificates'),
+        api.get('/warnings'),
+        api.get('/documents'),
       ]);
 
-      setEmployees(emp.data.employees || []);
-      setVacations(vac.data.vacations || []);
+      setEmployees(emp.data?.employees || emp.data || []);
+      setVacations(vac.data?.vacations || vac.data || []);
       setDashboardSummary(
-        dash.data.dashboard || {
+        dash.data?.dashboard || {
           employees: 0,
           vacations: 0,
           uniformsDelivered: 0,
@@ -67,40 +115,32 @@ function Dashboard({ onNavigate }) {
           alerts: [],
         }
       );
+
+      const apiCertificates = cert.data?.certificates || [];
+      const apiWarnings = warn.data?.warnings || [];
+      const apiDocuments = docs.data?.documents || [];
+
+      setCertificates(apiCertificates.map(mapCertificateFromApi));
+      setWarnings(apiWarnings.map(mapWarningFromApi));
+      setDocuments(apiDocuments.map(mapDocumentFromApi));
     } catch (err) {
-      console.error(err);
+      console.error('Erro ao carregar dashboard:', err);
     }
   };
 
-  const loadLocal = () => {
-    setCertificates(JSON.parse(localStorage.getItem('certificates')) || []);
-    setWarnings(JSON.parse(localStorage.getItem('warnings')) || []);
-    setSuspensions(JSON.parse(localStorage.getItem('suspensions')) || []);
-    setLeave(JSON.parse(localStorage.getItem('leave')) || []);
-    setOnboarding(JSON.parse(localStorage.getItem('onboarding')) || []);
-    setUniforms(JSON.parse(localStorage.getItem('uniforms')) || []);
-
-    const documentKeys = ['documents', 'employeeDocuments', 'documentHistory'];
-    let foundDocuments = [];
-
-    for (const key of documentKeys) {
-      const saved = localStorage.getItem(key);
-
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            foundDocuments = parsed;
-            break;
-          }
-        } catch (error) {
-          console.error(`Erro ao ler ${key} do localStorage:`, error);
-        }
-      }
+  const loadLocalModules = () => {
+    try {
+      setSuspensions(JSON.parse(localStorage.getItem('suspensions')) || []);
+      setLeave(JSON.parse(localStorage.getItem('leave')) || []);
+      setOnboarding(JSON.parse(localStorage.getItem('onboarding')) || []);
+      setUniforms(JSON.parse(localStorage.getItem('uniforms')) || []);
+    } catch (error) {
+      console.error('Erro ao carregar módulos locais:', error);
+      setSuspensions([]);
+      setLeave([]);
+      setOnboarding([]);
+      setUniforms([]);
     }
-
-    setDocuments(foundDocuments);
   };
 
   const generatePDF = async () => {
@@ -433,9 +473,12 @@ function Dashboard({ onNavigate }) {
     ];
 
     certificates.forEach((c) => {
-      if (!c.date) return;
-      const d = new Date(c.date);
+      const baseDate = c.date || c.startDate;
+      if (!baseDate) return;
+
+      const d = new Date(baseDate);
       if (Number.isNaN(d.getTime())) return;
+
       months[d.getMonth()].value += 1;
     });
 
