@@ -8,17 +8,18 @@ datasource db {
 }
 
 model Company {
-  id            Int            @id @default(autoincrement())
-  name          String
-  cnpj          String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             Int             @id @default(autoincrement())
+  name           String
+  cnpj           String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  users         User[]
-  employees     Employee[]
-  uniformStocks UniformStock[]
-  documents     Document[]
-  warnings      Warning[]
+  users          User[]
+  employees      Employee[]
+  uniformStocks  UniformStock[]
+  documents      Document[]
+  warnings       Warning[]
+  employeeLeaves EmployeeLeave[]
 }
 
 model User {
@@ -35,35 +36,36 @@ model User {
 }
 
 model Employee {
-  id            Int              @id @default(autoincrement())
-  name          String
-  cpf           String
-  birthDate     DateTime
-  maritalStatus String
-  email         String
-  phone         String
-  role          String
-  department    String
-  admissionDate DateTime
-  status        String           @default("ativo")
+  id             Int              @id @default(autoincrement())
+  name           String
+  cpf            String
+  birthDate      DateTime
+  maritalStatus  String
+  email          String
+  phone          String
+  role           String
+  department     String
+  admissionDate  DateTime
+  status         String           @default("ativo")
 
-  shirtSize     String?
-  pantsSize     String?
-  bootSize      String?
+  shirtSize      String?
+  pantsSize      String?
+  bootSize       String?
 
-  notes         String?
-  companyId     Int
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  notes          String?
+  companyId      Int
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  vacations     Vacation[]
-  certificates  Certificate[]
-  uniforms      UniformControl[]
-  workHours     WorkHour[]
-  workSchedules WorkSchedule[]
-  documents     Document[]
-  warnings      Warning[]
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vacations      Vacation[]
+  certificates   Certificate[]
+  uniforms       UniformControl[]
+  workHours      WorkHour[]
+  workSchedules  WorkSchedule[]
+  documents      Document[]
+  warnings       Warning[]
+  employeeLeaves EmployeeLeave[]
 
   @@unique([companyId, email])
   @@unique([companyId, cpf])
@@ -202,4 +204,24 @@ model Warning {
 
   @@index([employeeId])
   @@index([companyId])
+}
+
+model EmployeeLeave {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  type        String
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("Ativo")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([companyId])
+  @@index([status])
 }

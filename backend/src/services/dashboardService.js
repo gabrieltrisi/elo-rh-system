@@ -32,7 +32,7 @@ export const getDashboardService = async (companyId) => {
     },
   });
 
-  const leaves = await prisma.leave.findMany({
+  const leaves = await prisma.employeeLeave.findMany({
     where: {
       companyId,
     },

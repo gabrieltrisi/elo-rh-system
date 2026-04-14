@@ -42,7 +42,7 @@ const ensureEmployeeBelongsToCompany = async (employeeId, companyId) => {
 };
 
 const ensureLeaveBelongsToCompany = async (leaveId, companyId) => {
-  const leave = await prisma.leave.findFirst({
+  const leave = await prisma.employeeLeave.findFirst({
     where: {
       id: Number(leaveId),
       companyId: Number(companyId),
@@ -60,7 +60,7 @@ const ensureLeaveBelongsToCompany = async (leaveId, companyId) => {
 export const createLeaveService = async (data, companyId) => {
   await ensureEmployeeBelongsToCompany(data.employeeId, companyId);
 
-  return await prisma.leave.create({
+  return await prisma.employeeLeave.create({
     data: {
       employeeId: Number(data.employeeId),
       companyId: Number(companyId),
@@ -75,7 +75,7 @@ export const createLeaveService = async (data, companyId) => {
 };
 
 export const getLeavesService = async (companyId) => {
-  return await prisma.leave.findMany({
+  return await prisma.employeeLeave.findMany({
     where: {
       companyId: Number(companyId),
     },
@@ -89,7 +89,7 @@ export const getLeavesService = async (companyId) => {
 export const deleteLeaveService = async (leaveId, companyId) => {
   await ensureLeaveBelongsToCompany(leaveId, companyId);
 
-  await prisma.leave.delete({
+  await prisma.employeeLeave.delete({
     where: {
       id: Number(leaveId),
     },
