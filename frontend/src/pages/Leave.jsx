@@ -59,7 +59,7 @@ const Leave = () => {
   const loadLeaves = async () => {
     try {
       setLoadingLeaves(true);
-      const res = await api.get('/leave');
+      const res = await api.get('/leaves');
       const rawLeaves = res.data?.leaves || [];
       setLeaves(rawLeaves.map(mapLeaveFromApi));
     } catch (error) {
@@ -108,7 +108,7 @@ const Leave = () => {
     try {
       setSaving(true);
 
-      await api.post('/leave', {
+      await api.post('/leaves', {
         employeeId: Number(formData.employeeId),
         type: formData.type,
         startDate: formData.startDate,
@@ -135,7 +135,7 @@ const Leave = () => {
     if (!confirmDelete) return;
 
     try {
-      await api.delete(`/leave/${id}`);
+      await api.delete(`/leaves/${id}`);
       await loadLeaves();
     } catch (error) {
       console.error('Erro ao excluir afastamento:', error);
