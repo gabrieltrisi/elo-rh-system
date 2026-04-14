@@ -44,6 +44,18 @@ export const getDashboardService = async (companyId) => {
     },
   });
 
+  const suspensions = await prisma.suspension.findMany({
+    where: {
+      companyId,
+    },
+    include: {
+      employee: true,
+    },
+    orderBy: {
+      startDate: 'asc',
+    },
+  });
+
   const pendingCertificates = await prisma.certificate.count({
     where: {
       employee: {
@@ -94,6 +106,8 @@ export const getDashboardService = async (companyId) => {
   const birthdaysThisMonth = [];
   const activeLeaves = [];
   const returningFromLeave = [];
+  const activeSuspensions = [];
+  const endingSuspensions = [];
 
   for (const vacation of vacations) {
     const employeeName = normalizeEmployeeName(vacation.employee);
@@ -161,6 +175,56 @@ export const getDashboardService = async (companyId) => {
         endDate,
         daysUntilEnd,
       });
+    }
+  }
+
+  for (const suspension of suspensions) {
+    const employeeName = normalizeEmployeeName(suspension.employee);
+
+    if (!suspension.startDate) continue;
+
+    const startDate = new Date(suspension.startDate);
+    const endDate = suspension.endDate ? new Date(suspension.endDate) : null;
+
+    if (Number.isNaN(startDate.getTime())) {
+      continue;
+    }
+
+    const normalizedStatus = String(suspension.status || '').toLowerCase();
+    const statusSaysActive =
+      normalizedStatus === 'ativa' || normalizedStatus === 'registrada';
+
+    const isActiveByDate =
+      endDate && !Number.isNaN(endDate.getTime())
+        ? today >= startDate && today <= endDate
+        : today >= startDate;
+
+    const isActive = statusSaysActive || isActiveByDate;
+
+    if (isActive) {
+      activeSuspensions.push({
+        id: suspension.id,
+        employeeId: suspension.employeeId,
+        employeeName,
+        title: suspension.title,
+        endDate,
+        status: suspension.status,
+      });
+    }
+
+    if (endDate && !Number.isNaN(endDate.getTime())) {
+      const daysUntilEnd = differenceInDays(endDate, today);
+
+      if (daysUntilEnd >= 0 && daysUntilEnd <= 7) {
+        endingSuspensions.push({
+          id: suspension.id,
+          employeeId: suspension.employeeId,
+          employeeName,
+          title: suspension.title,
+          endDate,
+          daysUntilEnd,
+        });
+      }
     }
   }
 
@@ -249,6 +313,37 @@ export const getDashboardService = async (companyId) => {
       });
     });
 
+  if (activeSuspensions.length > 0) {
+    alerts.push({
+      id: 'suspensions-active',
+      type: 'suspension_active',
+      priority: activeSuspensions.length >= 2 ? 'high' : 'medium',
+      title: 'Suspensões ativas',
+      description: `${activeSuspensions.length} colaborador(es) com suspensão em andamento`,
+      page: 'suspensions',
+      tone: activeSuspensions.length >= 2 ? 'red' : 'amber',
+    });
+  }
+
+  endingSuspensions
+    .sort((a, b) => a.daysUntilEnd - b.daysUntilEnd)
+    .slice(0, 5)
+    .forEach((item) => {
+      alerts.push({
+        id: `suspension-ending-${item.id}`,
+        type: 'suspension_ending',
+        priority: item.daysUntilEnd <= 2 ? 'high' : 'medium',
+        title: 'Término de suspensão',
+        description:
+          item.daysUntilEnd === 0
+            ? `${item.employeeName} encerra suspensão hoje`
+            : `${item.employeeName} encerra suspensão em ${item.daysUntilEnd} dia(s)`,
+        employeeId: item.employeeId,
+        page: 'suspensions',
+        tone: item.daysUntilEnd <= 2 ? 'red' : 'blue',
+      });
+    });
+
   if (pendingCertificates > 0) {
     alerts.push({
       id: 'certificates-pending',
@@ -296,6 +391,8 @@ export const getDashboardService = async (companyId) => {
     vacations: vacations.length,
     leaves: leaves.length,
     activeLeaves: activeLeaves.length,
+    suspensions: suspensions.length,
+    activeSuspensions: activeSuspensions.length,
     uniformsDelivered,
     stockLow,
     pendingCertificates,
