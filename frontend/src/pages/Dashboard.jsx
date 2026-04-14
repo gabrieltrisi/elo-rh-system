@@ -15,11 +15,10 @@ import { CalendarDays, BellRing } from 'lucide-react';
 function Dashboard({ onNavigate }) {
   const [employees, setEmployees] = useState([]);
   const [vacations, setVacations] = useState([]);
-
   const [certificates, setCertificates] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [suspensions, setSuspensions] = useState([]);
-  const [leave, setLeave] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [onboarding, setOnboarding] = useState([]);
   const [uniforms, setUniforms] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -30,6 +29,8 @@ function Dashboard({ onNavigate }) {
   const [dashboardSummary, setDashboardSummary] = useState({
     employees: 0,
     vacations: 0,
+    leaves: 0,
+    activeLeaves: 0,
     uniformsDelivered: 0,
     stockLow: 0,
     pendingCertificates: 0,
@@ -89,15 +90,28 @@ function Dashboard({ onNavigate }) {
     status: item.status || '',
   });
 
+  const mapLeaveFromApi = (item) => ({
+    id: item.id,
+    employeeId: item.employeeId,
+    employeeName: item.employee?.name || item.employeeName || '',
+    type: item.type || 'INSS',
+    startDate: item.startDate || '',
+    endDate: item.endDate || '',
+    status: item.status || 'Ativo',
+    description: item.description || '',
+    createdAt: item.createdAt || '',
+  });
+
   const fetchData = async () => {
     try {
-      const [emp, vac, dash, cert, warn, docs] = await Promise.all([
+      const [emp, vac, dash, cert, warn, docs, leaveRes] = await Promise.all([
         api.get('/employees'),
         api.get('/vacations'),
         api.get('/dashboard'),
         api.get('/certificates'),
         api.get('/warnings'),
         api.get('/documents'),
+        api.get('/leaves'),
       ]);
 
       setEmployees(emp.data?.employees || emp.data || []);
@@ -106,6 +120,8 @@ function Dashboard({ onNavigate }) {
         dash.data?.dashboard || {
           employees: 0,
           vacations: 0,
+          leaves: 0,
+          activeLeaves: 0,
           uniformsDelivered: 0,
           stockLow: 0,
           pendingCertificates: 0,
@@ -119,10 +135,12 @@ function Dashboard({ onNavigate }) {
       const apiCertificates = cert.data?.certificates || [];
       const apiWarnings = warn.data?.warnings || [];
       const apiDocuments = docs.data?.documents || [];
+      const apiLeaves = leaveRes.data?.leaves || [];
 
       setCertificates(apiCertificates.map(mapCertificateFromApi));
       setWarnings(apiWarnings.map(mapWarningFromApi));
       setDocuments(apiDocuments.map(mapDocumentFromApi));
+      setLeaves(apiLeaves.map(mapLeaveFromApi));
     } catch (err) {
       console.error('Erro ao carregar dashboard:', err);
     }
@@ -131,13 +149,11 @@ function Dashboard({ onNavigate }) {
   const loadLocalModules = () => {
     try {
       setSuspensions(JSON.parse(localStorage.getItem('suspensions')) || []);
-      setLeave(JSON.parse(localStorage.getItem('leave')) || []);
       setOnboarding(JSON.parse(localStorage.getItem('onboarding')) || []);
       setUniforms(JSON.parse(localStorage.getItem('uniforms')) || []);
     } catch (error) {
       console.error('Erro ao carregar módulos locais:', error);
       setSuspensions([]);
-      setLeave([]);
       setOnboarding([]);
       setUniforms([]);
     }
@@ -212,9 +228,9 @@ function Dashboard({ onNavigate }) {
   const activeLeave = useMemo(() => {
     const today = new Date();
 
-    return leave.filter((item) => {
-      const startRaw = item.startDate || item.initialDate || item.dateStart;
-      const endRaw = item.endDate || item.finalDate || item.dateEnd;
+    return leaves.filter((item) => {
+      const startRaw = item.startDate;
+      const endRaw = item.endDate;
 
       if (!startRaw || !endRaw) return false;
 
@@ -230,14 +246,14 @@ function Dashboard({ onNavigate }) {
 
       return today >= startDate && today <= endDate;
     });
-  }, [leave]);
+  }, [leaves]);
 
   const leaveReturningSoon = useMemo(() => {
     const today = new Date();
 
-    return leave
+    return leaves
       .map((item) => {
-        const endRaw = item.endDate || item.finalDate || item.dateEnd;
+        const endRaw = item.endDate;
         if (!endRaw) return null;
 
         const endDate = new Date(endRaw);
@@ -255,7 +271,7 @@ function Dashboard({ onNavigate }) {
         (item) => item && item.daysUntilReturn >= 0 && item.daysUntilReturn <= 7
       )
       .sort((a, b) => a.daysUntilReturn - b.daysUntilReturn);
-  }, [leave]);
+  }, [leaves]);
 
   const upcomingVacationItems = useMemo(() => {
     const today = new Date();
@@ -309,8 +325,7 @@ function Dashboard({ onNavigate }) {
     });
 
     leaveReturningSoon.slice(0, 2).forEach((item, index) => {
-      const employeeName =
-        item.employeeName || item.fullName || item.employee || 'Colaborador';
+      const employeeName = item.employeeName || 'Colaborador';
 
       events.push({
         id: `leave-${index}`,
@@ -338,36 +353,6 @@ function Dashboard({ onNavigate }) {
   const smartFrontendAlerts = useMemo(() => {
     const extraAlerts = [];
 
-    if (activeLeave.length > 0) {
-      extraAlerts.push({
-        id: 'active-leave-alert',
-        type: 'leave_active',
-        priority: activeLeave.length >= 2 ? 'high' : 'medium',
-        title: 'Afastamentos em andamento',
-        description: `${activeLeave.length} colaborador(es) estão afastados/licença neste momento`,
-        page: 'leave',
-        tone: activeLeave.length >= 2 ? 'red' : 'amber',
-      });
-    }
-
-    leaveReturningSoon.slice(0, 3).forEach((item, index) => {
-      const employeeName =
-        item.employeeName || item.fullName || item.employee || 'Colaborador';
-
-      extraAlerts.push({
-        id: `leave-return-${index}`,
-        type: 'leave_return',
-        priority: item.daysUntilReturn <= 2 ? 'high' : 'medium',
-        title: 'Retorno de afastamento',
-        description:
-          item.daysUntilReturn === 0
-            ? `${employeeName} retorna de afastamento hoje`
-            : `${employeeName} retorna de afastamento em ${item.daysUntilReturn} dia(s)`,
-        page: 'leave',
-        tone: item.daysUntilReturn <= 2 ? 'red' : 'blue',
-      });
-    });
-
     if (pendingDocuments.length > 0) {
       extraAlerts.push({
         id: 'pending-documents-alert',
@@ -381,7 +366,7 @@ function Dashboard({ onNavigate }) {
     }
 
     return extraAlerts;
-  }, [activeLeave, leaveReturningSoon, pendingDocuments]);
+  }, [pendingDocuments]);
 
   const stats = {
     employees: dashboardSummary.employees || employees.length,
@@ -389,8 +374,8 @@ function Dashboard({ onNavigate }) {
     vacations: dashboardSummary.vacations || vacations.length,
     warnings: warnings.length,
     suspensions: suspensions.length,
-    leave: leave.length,
-    activeLeave: activeLeave.length,
+    leaves: dashboardSummary.leaves || leaves.length,
+    activeLeaves: dashboardSummary.activeLeaves || activeLeave.length,
     onboarding: onboarding.length,
     uniforms: uniforms.length,
     documents: documents.length,
@@ -412,9 +397,7 @@ function Dashboard({ onNavigate }) {
     certificates.forEach((c) => add(c.employeeName, 'atestados'));
     warnings.forEach((w) => add(w.employeeName, 'advertencias'));
     suspensions.forEach((s) => add(s.employeeName, 'suspensoes'));
-    leave.forEach((l) =>
-      add(l.employeeName || l.fullName || l.employee, 'afastamentos')
-    );
+    leaves.forEach((l) => add(l.employeeName, 'afastamentos'));
     onboarding.forEach((o) => add(o.employeeName, 'onboarding'));
     uniforms.forEach((u) => add(u.employeeName, 'fardamento'));
 
@@ -427,7 +410,7 @@ function Dashboard({ onNavigate }) {
     certificates,
     warnings,
     suspensions,
-    leave,
+    leaves,
     onboarding,
     uniforms,
     vacations,
@@ -500,7 +483,7 @@ function Dashboard({ onNavigate }) {
     certificates.forEach((c) => add(c.employeeName, 1));
     warnings.forEach((w) => add(w.employeeName, 2));
     suspensions.forEach((s) => add(s.employeeName, 3));
-    leave.forEach((l) => add(l.employeeName || l.fullName || l.employee, 2));
+    leaves.forEach((l) => add(l.employeeName, 2));
 
     return Object.entries(map).map(([name, score]) => {
       let level = 'BAIXO';
@@ -516,7 +499,7 @@ function Dashboard({ onNavigate }) {
 
       return { name, score, level, color };
     });
-  }, [certificates, warnings, suspensions, leave]);
+  }, [certificates, warnings, suspensions, leaves]);
 
   const topCritical = [...riskData]
     .sort((a, b) => b.score - a.score)
@@ -544,6 +527,12 @@ function Dashboard({ onNavigate }) {
       page: 'warnings',
     },
     {
+      title: 'Afastamentos',
+      subtitle: 'Licenças e INSS',
+      icon: '📅',
+      page: 'leave',
+    },
+    {
       title: 'Férias',
       subtitle: 'Planejamento',
       icon: '🌴',
@@ -554,12 +543,6 @@ function Dashboard({ onNavigate }) {
       subtitle: 'Arquivos e contratos',
       icon: '📂',
       page: 'documents',
-    },
-    {
-      title: 'Benefícios',
-      subtitle: 'VT, VR e plano',
-      icon: '🎁',
-      page: 'benefits',
     },
   ];
 
@@ -586,6 +569,7 @@ function Dashboard({ onNavigate }) {
                 { label: 'Colaboradores', page: 'employees' },
                 { label: 'Atestados', page: 'certificates' },
                 { label: 'Advertências', page: 'warnings' },
+                { label: 'Afastamentos', page: 'leave' },
                 { label: 'Férias', page: 'vacations' },
                 { label: 'Documentos', page: 'documents' },
               ].map((btn) => (
@@ -705,7 +689,7 @@ function Dashboard({ onNavigate }) {
           />
           <MiniAlertCard
             title='Afastamentos ativos'
-            value={stats.activeLeave}
+            value={stats.activeLeaves}
             subtitle='Licenças em andamento'
             tone='amber'
           />
@@ -716,8 +700,8 @@ function Dashboard({ onNavigate }) {
             tone='red'
           />
           <MiniAlertCard
-            title='Férias cadastradas'
-            value={stats.vacations}
+            title='Afastamentos totais'
+            value={stats.leaves}
             subtitle='Total no sistema'
             tone='green'
           />
