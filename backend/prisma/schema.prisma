@@ -20,6 +20,7 @@ model Company {
   documents      Document[]
   warnings       Warning[]
   employeeLeaves EmployeeLeave[]
+  suspensions    Suspension[]
 }
 
 model User {
@@ -66,6 +67,7 @@ model Employee {
   documents      Document[]
   warnings       Warning[]
   employeeLeaves EmployeeLeave[]
+  suspensions    Suspension[]
 
   @@unique([companyId, email])
   @@unique([companyId, cpf])
@@ -220,6 +222,26 @@ model EmployeeLeave {
 
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([companyId])
+  @@index([status])
+}
+
+model Suspension {
+  id          Int       @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  title       String
+  startDate   DateTime
+  endDate     DateTime?
+  status      String    @default("Registrada")
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([companyId])
