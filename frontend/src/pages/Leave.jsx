@@ -11,10 +11,25 @@ const initialForm = {
   description: '',
 };
 
+const mapLeaveFromApi = (item) => {
+  return {
+    id: item.id,
+    employeeId: item.employeeId,
+    employeeName: item.employee?.name || item.employeeName || '',
+    type: item.type || 'INSS',
+    startDate: item.startDate || '',
+    endDate: item.endDate || '',
+    status: item.status || 'Ativo',
+    description: item.description || '',
+    createdAt: item.createdAt || '',
+  };
+};
+
 const Leave = () => {
   const [employees, setEmployees] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingLeaves, setLoadingLeaves] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -23,24 +38,33 @@ const Leave = () => {
 
   useEffect(() => {
     fetchEmployees();
-    const saved = localStorage.getItem('leave');
-    setLeaves(saved ? JSON.parse(saved) : []);
+    loadLeaves();
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('leave', JSON.stringify(leaves));
-  }, [leaves]);
 
   const fetchEmployees = async () => {
     try {
       setLoadingEmployees(true);
       const res = await api.get('/employees');
-      setEmployees(res.data.employees || []);
+      setEmployees(res.data?.employees || res.data || []);
     } catch (error) {
       console.error('Erro ao buscar colaboradores:', error);
       setEmployees([]);
     } finally {
       setLoadingEmployees(false);
+    }
+  };
+
+  const loadLeaves = async () => {
+    try {
+      setLoadingLeaves(true);
+      const res = await api.get('/leaves');
+      const rawLeaves = res.data?.leaves || [];
+      setLeaves(rawLeaves.map(mapLeaveFromApi));
+    } catch (error) {
+      console.error('Erro ao buscar afastamentos:', error);
+      setLeaves([]);
+    } finally {
+      setLoadingLeaves(false);
     }
   };
 
@@ -70,7 +94,7 @@ const Leave = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
 
     if (!formData.employeeId || !formData.startDate || !formData.endDate) {
@@ -81,24 +105,36 @@ const Leave = () => {
     try {
       setSaving(true);
 
-      const newItem = {
-        id: Date.now(),
-        ...formData,
+      await api.post('/leaves', {
         employeeId: Number(formData.employeeId),
-        createdAt: new Date().toISOString(),
-      };
+        type: formData.type,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        status: formData.status,
+        description: formData.description,
+      });
 
-      setLeaves((prev) => [newItem, ...prev]);
+      await loadLeaves();
       closeDrawer();
+    } catch (error) {
+      console.error('Erro ao salvar afastamento:', error);
+      alert(error?.response?.data?.message || 'Erro ao salvar afastamento.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmDelete = window.confirm('Deseja excluir este afastamento?');
     if (!confirmDelete) return;
-    setLeaves((prev) => prev.filter((item) => item.id !== id));
+
+    try {
+      await api.delete(`/leaves/${id}`);
+      await loadLeaves();
+    } catch (error) {
+      console.error('Erro ao excluir afastamento:', error);
+      alert(error?.response?.data?.message || 'Erro ao excluir afastamento.');
+    }
   };
 
   const filtered = useMemo(() => {
@@ -230,7 +266,11 @@ const Leave = () => {
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {loadingLeaves ? (
+          <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
+            Carregando afastamentos...
+          </div>
+        ) : filtered.length === 0 ? (
           <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
             Nenhum afastamento encontrado.
           </div>
@@ -251,7 +291,9 @@ const Leave = () => {
                     </div>
 
                     <span
-                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(item.status)}`}
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                        item.status
+                      )}`}
                     >
                       {item.status}
                     </span>

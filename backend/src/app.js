@@ -12,6 +12,7 @@ import dashboardRoutes from './routes/dashboardRoutes.js';
 import workScheduleRoutes from './routes/workScheduleRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import warningRoutes from './routes/warningRoutes.js';
+import leaveRoutes from './routes/leaveRoutes.js'; // ✅ NOVO
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ROTAS
 app.use('/auth', authRoutes);
 app.use('/employees', employeeRoutes);
 app.use('/vacations', vacationRoutes);
@@ -84,13 +86,16 @@ app.use('/dashboard', dashboardRoutes);
 app.use('/work-schedules', workScheduleRoutes);
 app.use('/documents', documentRoutes);
 app.use('/warnings', warningRoutes);
+app.use('/leaves', leaveRoutes); // ✅ NOVO
 
+// 404
 app.use((req, res) => {
   res.status(404).json({
     message: 'Rota não encontrada',
   });
 });
 
+// ERROS
 app.use((err, req, res, next) => {
   console.error('Erro na aplicação:', err);
 
