@@ -25,17 +25,14 @@ const REQUIRED_DOCUMENT_CATEGORIES = [
 const statusConfig = {
   PENDENTE: {
     label: 'Pendente',
-    card: 'border-amber-200 bg-amber-50 text-amber-700',
     badge: 'border border-amber-200 bg-amber-50 text-amber-700',
   },
   EM_ANDAMENTO: {
     label: 'Em andamento',
-    card: 'border-blue-200 bg-blue-50 text-blue-700',
     badge: 'border border-blue-200 bg-blue-50 text-blue-700',
   },
   CONCLUIDO: {
     label: 'Concluído',
-    card: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     badge: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
   },
 };
@@ -90,13 +87,6 @@ const formatDate = (date) => {
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return date;
   return parsed.toLocaleDateString('pt-BR');
-};
-
-const formatDateTime = (date) => {
-  if (!date) return '-';
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleString('pt-BR');
 };
 
 const StepBadge = ({ active, label }) => (
@@ -160,6 +150,8 @@ const Onboarding = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [formData, setFormData] = useState(initialForm);
   const [saving, setSaving] = useState(false);
+  const [sendingWelcomeId, setSendingWelcomeId] = useState(null);
+  const [generatingAccessId, setGeneratingAccessId] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -327,6 +319,48 @@ const Onboarding = () => {
       alert(error?.response?.data?.message || 'Erro ao salvar onboarding.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendWelcome = async (item) => {
+    try {
+      setSendingWelcomeId(item.id);
+      const res = await api.post(`/onboarding/${item.id}/send-welcome`);
+      alert(res.data?.message || 'Boas-vindas enviadas com sucesso.');
+      await fetchOnboardings();
+    } catch (error) {
+      console.error('Erro ao enviar boas-vindas:', error);
+      alert(error?.response?.data?.message || 'Erro ao enviar boas-vindas.');
+    } finally {
+      setSendingWelcomeId(null);
+    }
+  };
+
+  const handleGenerateAccess = async (item) => {
+    try {
+      setGeneratingAccessId(item.id);
+      const res = await api.get(`/onboarding/${item.id}/access-template`);
+
+      const accessTemplate = res.data?.accessTemplate;
+      const systems = accessTemplate?.systems || [];
+
+      const lines = systems.map(
+        (system) =>
+          `• ${system.systemName}\n  Usuário: ${system.username}\n  Link: ${system.accessLink}\n  Obs: ${system.notes}`
+      );
+
+      alert(
+        `${res.data?.message || 'Modelo de acessos gerado com sucesso.'}\n\n${lines.join('\n\n')}`
+      );
+
+      await fetchOnboardings();
+    } catch (error) {
+      console.error('Erro ao gerar acessos:', error);
+      alert(
+        error?.response?.data?.message || 'Erro ao gerar modelo de acessos.'
+      );
+    } finally {
+      setGeneratingAccessId(null);
     }
   };
 
@@ -584,16 +618,24 @@ const Onboarding = () => {
 
                 <button
                   type='button'
-                  className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100'
+                  onClick={() => handleSendWelcome(item)}
+                  disabled={sendingWelcomeId === item.id}
+                  className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60'
                 >
-                  Enviar boas-vindas
+                  {sendingWelcomeId === item.id
+                    ? 'Enviando...'
+                    : 'Enviar boas-vindas'}
                 </button>
 
                 <button
                   type='button'
-                  className='rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100'
+                  onClick={() => handleGenerateAccess(item)}
+                  disabled={generatingAccessId === item.id}
+                  className='rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60'
                 >
-                  Gerar acessos
+                  {generatingAccessId === item.id
+                    ? 'Gerando...'
+                    : 'Gerar acessos'}
                 </button>
               </div>
             </div>
@@ -702,13 +744,24 @@ const Onboarding = () => {
                     </td>
 
                     <td className='px-6 py-5'>
-                      <div className='flex justify-center'>
+                      <div className='flex justify-center gap-2'>
                         <button
                           type='button'
                           onClick={() => openDrawer(item)}
                           className='rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50'
                         >
                           Editar
+                        </button>
+
+                        <button
+                          type='button'
+                          onClick={() => handleSendWelcome(item)}
+                          disabled={sendingWelcomeId === item.id}
+                          className='rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60'
+                        >
+                          {sendingWelcomeId === item.id
+                            ? 'Enviando...'
+                            : 'E-mail'}
                         </button>
                       </div>
                     </td>
