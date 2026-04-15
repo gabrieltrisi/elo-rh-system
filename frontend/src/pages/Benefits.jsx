@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 
-const STORAGE_KEY = 'benefits';
-
 const initialForm = {
   employeeId: '',
   employeeName: '',
@@ -42,7 +40,6 @@ const Benefits = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [formData, setFormData] = useState(initialForm);
   const [saving, setSaving] = useState(false);
-  const [usingFallback, setUsingFallback] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
@@ -68,25 +65,13 @@ const Benefits = () => {
       const res = await api.get('/benefits');
       const rawBenefits = res.data?.benefits || [];
       setBenefits(rawBenefits.map(normalizeBenefitItem));
-      setUsingFallback(false);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(rawBenefits));
     } catch (error) {
-      console.warn(
-        'Backend de benefícios não encontrado ou indisponível. Usando armazenamento local.',
-        error
-      );
-      const saved = localStorage.getItem(STORAGE_KEY);
-      const parsed = saved ? JSON.parse(saved) : [];
-      setBenefits(parsed.map(normalizeBenefitItem));
-      setUsingFallback(true);
+      console.error('Erro ao buscar benefícios:', error);
+      setBenefits([]);
+      alert(error?.response?.data?.message || 'Erro ao carregar benefícios.');
     } finally {
       setLoadingBenefits(false);
     }
-  };
-
-  const persistLocalBenefits = (items) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    setBenefits(items.map(normalizeBenefitItem));
   };
 
   const openDrawer = () => {
@@ -104,6 +89,7 @@ const Benefits = () => {
 
     if (name === 'employeeId') {
       const emp = employees.find((employee) => String(employee.id) === value);
+
       setFormData((prev) => ({
         ...prev,
         employeeId: value,
@@ -170,42 +156,8 @@ const Benefits = () => {
 
     try {
       setSaving(true);
-
-      if (!usingFallback) {
-        await api.post('/benefits', payload);
-        await loadBenefits();
-        closeDrawer();
-        return;
-      }
-
-      const existing = benefits.find(
-        (item) => Number(item.employeeId) === Number(formData.employeeId)
-      );
-
-      if (existing) {
-        const updated = benefits.map((item) =>
-          Number(item.employeeId) === Number(formData.employeeId)
-            ? {
-                ...item,
-                ...payload,
-                id: item.id,
-                updatedAt: new Date().toISOString(),
-              }
-            : item
-        );
-
-        persistLocalBenefits(updated);
-      } else {
-        const newBenefit = {
-          id: Date.now(),
-          ...payload,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        persistLocalBenefits([newBenefit, ...benefits]);
-      }
-
+      await api.post('/benefits', payload);
+      await loadBenefits();
       closeDrawer();
     } catch (error) {
       console.error('Erro ao salvar benefícios:', error);
@@ -223,14 +175,8 @@ const Benefits = () => {
     if (!confirmDelete) return;
 
     try {
-      if (!usingFallback) {
-        await api.delete(`/benefits/${id}`);
-        await loadBenefits();
-        return;
-      }
-
-      const updated = benefits.filter((item) => item.id !== id);
-      persistLocalBenefits(updated);
+      await api.delete(`/benefits/${id}`);
+      await loadBenefits();
     } catch (error) {
       console.error('Erro ao excluir benefícios:', error);
       alert(error?.response?.data?.message || 'Erro ao excluir benefícios.');
@@ -487,14 +433,6 @@ const Benefits = () => {
             + Novo cadastro
           </button>
         </div>
-
-        {usingFallback ? (
-          <div className='rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700 shadow-sm'>
-            Benefícios ainda estão usando armazenamento local. Para salvar no
-            banco e aparecer em todas as abas, me manda depois os arquivos do
-            backend de benefícios.
-          </div>
-        ) : null}
 
         <div className='grid grid-cols-1 gap-4 md:grid-cols-5'>
           <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
