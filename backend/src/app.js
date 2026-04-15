@@ -15,6 +15,7 @@ import warningRoutes from './routes/warningRoutes.js';
 import leaveRoutes from './routes/leaveRoutes.js';
 import suspensionRoutes from './routes/suspensionRoutes.js';
 import benefitRoutes from './routes/benefitRoutes.js';
+import onboardingRoutes from './routes/onboardingRoutes.js';
 
 const app = express();
 
@@ -90,6 +91,7 @@ app.use('/warnings', warningRoutes);
 app.use('/leaves', leaveRoutes);
 app.use('/suspensions', suspensionRoutes);
 app.use('/benefits', benefitRoutes);
+app.use('/onboarding', onboardingRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
