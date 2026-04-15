@@ -6,32 +6,19 @@ const normalizeBoolean = (value) => Boolean(value);
 const normalizeNullableDate = (value) => {
   if (!value) return null;
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const buildSystemsTemplate = (employee) => {
-  const name = employee?.name || 'usuario';
-  const first = name.split(' ')[0].toLowerCase();
-
-  return [
-    {
-      systemName: 'E-mail Corporativo',
-      accessLink: 'https://mail.google.com',
-      username: `${first}@empresa.com.br`,
-      notes: 'Ajustar domínio',
-    },
-    {
-      systemName: 'ERP',
-      accessLink: 'https://erp.empresa.com.br',
-      username: first,
-      notes: 'Criar acesso inicial',
-    },
-  ];
+const safePrisma = () => {
+  if (!prisma || !prisma.onboarding) {
+    throw new Error('Prisma não inicializado corretamente');
+  }
 };
 
 export const createOnboarding = async (req, res) => {
   try {
+    safePrisma();
+
     const {
       employeeId,
       status,
@@ -41,7 +28,12 @@ export const createOnboarding = async (req, res) => {
       completedAt,
       notes,
     } = req.body;
+
     const companyId = req.user.companyId;
+
+    if (!employeeId) {
+      return res.status(400).json({ message: 'Selecione o colaborador' });
+    }
 
     const employee = await prisma.employee.findFirst({
       where: { id: Number(employeeId), companyId },
@@ -68,20 +60,24 @@ export const createOnboarding = async (req, res) => {
         accessCreated: normalizeBoolean(accessCreated),
         startDate: normalizeNullableDate(startDate) || new Date(),
         completedAt: normalizeNullableDate(completedAt),
-        notes,
+        notes: notes || null,
       },
       include: { employee: true },
     });
 
     res.status(201).json({ onboarding });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Erro ao criar onboarding' });
+    console.error('CREATE ERROR:', err);
+    res.status(500).json({
+      message: err.message || 'Erro ao criar onboarding',
+    });
   }
 };
 
 export const getOnboardings = async (req, res) => {
   try {
+    safePrisma();
+
     const companyId = req.user.companyId;
 
     const onboardings = await prisma.onboarding.findMany({
@@ -92,12 +88,17 @@ export const getOnboardings = async (req, res) => {
 
     res.json({ onboardings });
   } catch (err) {
-    res.status(500).json({ message: 'Erro ao buscar onboardings' });
+    console.error('GET ERROR:', err);
+    res.status(500).json({
+      message: err.message || 'Erro ao buscar onboardings',
+    });
   }
 };
 
 export const updateOnboarding = async (req, res) => {
   try {
+    safePrisma();
+
     const { id } = req.params;
 
     const onboarding = await prisma.onboarding.update({
@@ -108,12 +109,17 @@ export const updateOnboarding = async (req, res) => {
 
     res.json({ onboarding });
   } catch (err) {
-    res.status(500).json({ message: 'Erro ao atualizar' });
+    console.error('UPDATE ERROR:', err);
+    res.status(500).json({
+      message: err.message || 'Erro ao atualizar',
+    });
   }
 };
 
 export const sendWelcomeOnboarding = async (req, res) => {
   try {
+    safePrisma();
+
     const { id } = req.params;
     const companyId = req.user.companyId;
 
@@ -142,13 +148,17 @@ export const sendWelcomeOnboarding = async (req, res) => {
       onboarding: updated,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Erro ao enviar email' });
+    console.error('EMAIL ERROR:', err);
+    res.status(500).json({
+      message: err.message || 'Erro ao enviar email',
+    });
   }
 };
 
 export const generateAccessTemplate = async (req, res) => {
   try {
+    safePrisma();
+
     const { id } = req.params;
     const companyId = req.user.companyId;
 
@@ -161,7 +171,12 @@ export const generateAccessTemplate = async (req, res) => {
       return res.status(404).json({ message: 'Não encontrado' });
     }
 
-    const systems = buildSystemsTemplate(onboarding.employee);
+    const systems = [
+      {
+        systemName: 'E-mail',
+        username: onboarding.employee.name.split(' ')[0].toLowerCase(),
+      },
+    ];
 
     await prisma.onboarding.update({
       where: { id: Number(id) },
@@ -170,12 +185,12 @@ export const generateAccessTemplate = async (req, res) => {
 
     res.json({
       message: 'Acessos gerados',
-      accessTemplate: {
-        employee: onboarding.employee.name,
-        systems,
-      },
+      accessTemplate: { systems },
     });
   } catch (err) {
-    res.status(500).json({ message: 'Erro ao gerar acessos' });
+    console.error('ACCESS ERROR:', err);
+    res.status(500).json({
+      message: err.message || 'Erro ao gerar acessos',
+    });
   }
 };
