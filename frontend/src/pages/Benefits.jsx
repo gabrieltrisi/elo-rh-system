@@ -1,34 +1,53 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 
+const STORAGE_KEY = 'benefits';
+
 const initialForm = {
   employeeId: '',
   employeeName: '',
   transportVoucher: false,
+  transportVoucherType: '',
   mealVoucher: false,
+  mealVoucherType: '',
   healthPlan: false,
+  dentalPlan: false,
   notes: '',
+};
+
+const normalizeBenefitItem = (item) => {
+  return {
+    id: item.id,
+    employeeId: Number(item.employeeId),
+    employeeName: item.employee?.name || item.employeeName || '',
+    transportVoucher: Boolean(item.transportVoucher),
+    transportVoucherType: item.transportVoucherType || '',
+    mealVoucher: Boolean(item.mealVoucher),
+    mealVoucherType: item.mealVoucherType || '',
+    healthPlan: Boolean(item.healthPlan),
+    dentalPlan: Boolean(item.dentalPlan),
+    notes: item.notes || '',
+    createdAt: item.createdAt || '',
+    updatedAt: item.updatedAt || '',
+  };
 };
 
 const Benefits = () => {
   const [employees, setEmployees] = useState([]);
   const [benefits, setBenefits] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingBenefits, setLoadingBenefits] = useState(true);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [formData, setFormData] = useState(initialForm);
   const [saving, setSaving] = useState(false);
+  const [usingFallback, setUsingFallback] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
-    const saved = localStorage.getItem('benefits');
-    setBenefits(saved ? JSON.parse(saved) : []);
+    loadBenefits();
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('benefits', JSON.stringify(benefits));
-  }, [benefits]);
 
   const fetchEmployees = async () => {
     try {
@@ -41,6 +60,33 @@ const Benefits = () => {
     } finally {
       setLoadingEmployees(false);
     }
+  };
+
+  const loadBenefits = async () => {
+    try {
+      setLoadingBenefits(true);
+      const res = await api.get('/benefits');
+      const rawBenefits = res.data?.benefits || [];
+      setBenefits(rawBenefits.map(normalizeBenefitItem));
+      setUsingFallback(false);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rawBenefits));
+    } catch (error) {
+      console.warn(
+        'Backend de benefícios não encontrado ou indisponível. Usando armazenamento local.',
+        error
+      );
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : [];
+      setBenefits(parsed.map(normalizeBenefitItem));
+      setUsingFallback(true);
+    } finally {
+      setLoadingBenefits(false);
+    }
+  };
+
+  const persistLocalBenefits = (items) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    setBenefits(items.map(normalizeBenefitItem));
   };
 
   const openDrawer = () => {
@@ -66,13 +112,31 @@ const Benefits = () => {
       return;
     }
 
+    if (name === 'transportVoucher') {
+      setFormData((prev) => ({
+        ...prev,
+        transportVoucher: checked,
+        transportVoucherType: checked ? prev.transportVoucherType : '',
+      }));
+      return;
+    }
+
+    if (name === 'mealVoucher') {
+      setFormData((prev) => ({
+        ...prev,
+        mealVoucher: checked,
+        mealVoucherType: checked ? prev.mealVoucherType || 'Caju' : '',
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
 
     if (!formData.employeeId || !formData.employeeName) {
@@ -80,8 +144,39 @@ const Benefits = () => {
       return;
     }
 
+    if (formData.transportVoucher && !formData.transportVoucherType) {
+      alert('Selecione o tipo do Vale Transporte.');
+      return;
+    }
+
+    if (formData.mealVoucher && !formData.mealVoucherType) {
+      alert('Selecione o tipo do Vale Alimentação/Refeição.');
+      return;
+    }
+
+    const payload = {
+      employeeId: Number(formData.employeeId),
+      employeeName: formData.employeeName,
+      transportVoucher: formData.transportVoucher,
+      transportVoucherType: formData.transportVoucher
+        ? formData.transportVoucherType
+        : '',
+      mealVoucher: formData.mealVoucher,
+      mealVoucherType: formData.mealVoucher ? formData.mealVoucherType : '',
+      healthPlan: formData.healthPlan,
+      dentalPlan: formData.dentalPlan,
+      notes: formData.notes,
+    };
+
     try {
       setSaving(true);
+
+      if (!usingFallback) {
+        await api.post('/benefits', payload);
+        await loadBenefits();
+        closeDrawer();
+        return;
+      }
 
       const existing = benefits.find(
         (item) => Number(item.employeeId) === Number(formData.employeeId)
@@ -92,40 +187,64 @@ const Benefits = () => {
           Number(item.employeeId) === Number(formData.employeeId)
             ? {
                 ...item,
-                ...formData,
-                employeeId: Number(formData.employeeId),
+                ...payload,
+                id: item.id,
                 updatedAt: new Date().toISOString(),
               }
             : item
         );
-        setBenefits(updated);
+
+        persistLocalBenefits(updated);
       } else {
         const newBenefit = {
           id: Date.now(),
-          ...formData,
-          employeeId: Number(formData.employeeId),
+          ...payload,
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
-        setBenefits((prev) => [newBenefit, ...prev]);
+
+        persistLocalBenefits([newBenefit, ...benefits]);
       }
 
       closeDrawer();
+    } catch (error) {
+      console.error('Erro ao salvar benefícios:', error);
+      alert(error?.response?.data?.message || 'Erro ao salvar benefícios.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmDelete = window.confirm(
       'Deseja excluir este cadastro de benefícios?'
     );
+
     if (!confirmDelete) return;
-    setBenefits((prev) => prev.filter((item) => item.id !== id));
+
+    try {
+      if (!usingFallback) {
+        await api.delete(`/benefits/${id}`);
+        await loadBenefits();
+        return;
+      }
+
+      const updated = benefits.filter((item) => item.id !== id);
+      persistLocalBenefits(updated);
+    } catch (error) {
+      console.error('Erro ao excluir benefícios:', error);
+      alert(error?.response?.data?.message || 'Erro ao excluir benefícios.');
+    }
   };
 
   const filteredBenefits = useMemo(() => {
     return benefits.filter((item) =>
-      `${item.employeeName || ''} ${item.notes || ''}`
+      `
+        ${item.employeeName || ''}
+        ${item.notes || ''}
+        ${item.transportVoucherType || ''}
+        ${item.mealVoucherType || ''}
+      `
         .toLowerCase()
         .includes(search.toLowerCase())
     );
@@ -137,6 +256,7 @@ const Benefits = () => {
       transport: benefits.filter((b) => b.transportVoucher).length,
       meal: benefits.filter((b) => b.mealVoucher).length,
       health: benefits.filter((b) => b.healthPlan).length,
+      dental: benefits.filter((b) => b.dentalPlan).length,
     };
   }, [benefits]);
 
@@ -155,6 +275,14 @@ const Benefits = () => {
   };
 
   const renderOverview = () => {
+    if (loadingBenefits) {
+      return (
+        <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
+          Carregando benefícios...
+        </div>
+      );
+    }
+
     if (filteredBenefits.length === 0) {
       return (
         <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
@@ -182,8 +310,29 @@ const Benefits = () => {
 
               <div className='flex flex-wrap gap-2'>
                 {renderBenefitBadge(item.transportVoucher, 'Vale Transporte')}
-                {renderBenefitBadge(item.mealVoucher, 'Vale Refeição')}
+                {renderBenefitBadge(item.mealVoucher, 'Vale Alimentação')}
                 {renderBenefitBadge(item.healthPlan, 'Plano de Saúde')}
+                {renderBenefitBadge(item.dentalPlan, 'Plano Odontológico')}
+              </div>
+
+              <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                  <p className='text-sm text-slate-500'>Tipo de VT</p>
+                  <p className='mt-1 font-semibold text-slate-800'>
+                    {item.transportVoucher
+                      ? item.transportVoucherType || '-'
+                      : 'Não possui'}
+                  </p>
+                </div>
+
+                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                  <p className='text-sm text-slate-500'>Tipo de VA</p>
+                  <p className='mt-1 font-semibold text-slate-800'>
+                    {item.mealVoucher
+                      ? item.mealVoucherType || '-'
+                      : 'Não possui'}
+                  </p>
+                </div>
               </div>
 
               {item.notes ? (
@@ -220,7 +369,11 @@ const Benefits = () => {
           </h3>
         </div>
 
-        {filteredBenefits.length === 0 ? (
+        {loadingBenefits ? (
+          <div className='px-6 py-10 text-slate-500'>
+            Carregando benefícios...
+          </div>
+        ) : filteredBenefits.length === 0 ? (
           <div className='px-6 py-10 text-slate-500'>
             Nenhum benefício cadastrado.
           </div>
@@ -236,10 +389,19 @@ const Benefits = () => {
                     Vale Transporte
                   </th>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                    Vale Refeição
+                    Tipo VT
                   </th>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                    Plano de Saúde
+                    Vale Alimentação
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Tipo VA
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Saúde
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Odontológico
                   </th>
                   <th className='px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Ações
@@ -259,16 +421,28 @@ const Benefits = () => {
                         item.transportVoucher ? 'Ativo' : 'Inativo'
                       )}
                     </td>
+                    <td className='px-6 py-5 text-sm text-slate-700'>
+                      {item.transportVoucherType || '-'}
+                    </td>
                     <td className='px-6 py-5'>
                       {renderBenefitBadge(
                         item.mealVoucher,
                         item.mealVoucher ? 'Ativo' : 'Inativo'
                       )}
                     </td>
+                    <td className='px-6 py-5 text-sm text-slate-700'>
+                      {item.mealVoucherType || '-'}
+                    </td>
                     <td className='px-6 py-5'>
                       {renderBenefitBadge(
                         item.healthPlan,
                         item.healthPlan ? 'Ativo' : 'Inativo'
+                      )}
+                    </td>
+                    <td className='px-6 py-5'>
+                      {renderBenefitBadge(
+                        item.dentalPlan,
+                        item.dentalPlan ? 'Ativo' : 'Inativo'
                       )}
                     </td>
                     <td className='px-6 py-5'>
@@ -302,7 +476,7 @@ const Benefits = () => {
             </p>
             <h1 className='text-3xl font-bold text-slate-800'>Benefícios</h1>
             <p className='mt-1 text-slate-500'>
-              Gestão de Vale Transporte, Vale Refeição e Plano de Saúde.
+              Gestão de VT, VA, plano de saúde e plano odontológico.
             </p>
           </div>
 
@@ -314,7 +488,15 @@ const Benefits = () => {
           </button>
         </div>
 
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
+        {usingFallback ? (
+          <div className='rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700 shadow-sm'>
+            Benefícios ainda estão usando armazenamento local. Para salvar no
+            banco e aparecer em todas as abas, me manda depois os arquivos do
+            backend de benefícios.
+          </div>
+        ) : null}
+
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-5'>
           <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
             <p className='text-sm text-slate-500'>Total de colaboradores</p>
             <h2 className='mt-2 text-3xl font-bold text-slate-800'>
@@ -330,7 +512,7 @@ const Benefits = () => {
           </div>
 
           <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
-            <p className='text-sm text-slate-500'>Vale Refeição</p>
+            <p className='text-sm text-slate-500'>Vale Alimentação</p>
             <h2 className='mt-2 text-3xl font-bold text-slate-800'>
               {stats.meal}
             </h2>
@@ -342,6 +524,13 @@ const Benefits = () => {
               {stats.health}
             </h2>
           </div>
+
+          <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+            <p className='text-sm text-slate-500'>Plano Odontológico</p>
+            <h2 className='mt-2 text-3xl font-bold text-slate-800'>
+              {stats.dental}
+            </h2>
+          </div>
         </div>
 
         <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
@@ -350,7 +539,7 @@ const Benefits = () => {
           </label>
           <input
             type='text'
-            placeholder='Buscar por colaborador'
+            placeholder='Buscar por colaborador, observações ou tipo de benefício'
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className='w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500'
@@ -438,6 +627,15 @@ const Benefits = () => {
               <div className='flex-1 overflow-y-auto px-6 py-6'>
                 <div className='space-y-6'>
                   <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+                    <div className='mb-5'>
+                      <h3 className='text-lg font-semibold text-slate-800'>
+                        Colaborador
+                      </h3>
+                      <p className='mt-1 text-sm text-slate-500'>
+                        Selecione o colaborador relacionado aos benefícios.
+                      </p>
+                    </div>
+
                     <label className='mb-2 block text-sm font-semibold text-slate-700'>
                       Colaborador
                     </label>
@@ -463,32 +661,82 @@ const Benefits = () => {
                   </section>
 
                   <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
-                    <div className='space-y-4'>
-                      <label className='flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4'>
-                        <input
-                          type='checkbox'
-                          name='transportVoucher'
-                          checked={formData.transportVoucher}
-                          onChange={handleChange}
-                        />
-                        <span className='font-medium text-slate-800'>
-                          Vale Transporte
-                        </span>
-                      </label>
+                    <div className='mb-5'>
+                      <h3 className='text-lg font-semibold text-slate-800'>
+                        Benefícios
+                      </h3>
+                      <p className='mt-1 text-sm text-slate-500'>
+                        Ative e configure os benefícios concedidos.
+                      </p>
+                    </div>
 
-                      <label className='flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4'>
-                        <input
-                          type='checkbox'
-                          name='mealVoucher'
-                          checked={formData.mealVoucher}
-                          onChange={handleChange}
-                        />
-                        <span className='font-medium text-slate-800'>
-                          Vale Refeição
-                        </span>
-                      </label>
+                    <div className='space-y-5'>
+                      <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                        <label className='flex items-center gap-3'>
+                          <input
+                            type='checkbox'
+                            name='transportVoucher'
+                            checked={formData.transportVoucher}
+                            onChange={handleChange}
+                          />
+                          <span className='font-medium text-slate-800'>
+                            Vale Transporte
+                          </span>
+                        </label>
 
-                      <label className='flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                        {formData.transportVoucher ? (
+                          <div className='mt-4'>
+                            <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                              Tipo de VT
+                            </label>
+                            <select
+                              name='transportVoucherType'
+                              value={formData.transportVoucherType}
+                              onChange={handleChange}
+                              className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                            >
+                              <option value=''>Selecione o tipo</option>
+                              <option value='CCR'>CCR</option>
+                              <option value='Salvador Card'>
+                                Salvador Card
+                              </option>
+                            </select>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                        <label className='flex items-center gap-3'>
+                          <input
+                            type='checkbox'
+                            name='mealVoucher'
+                            checked={formData.mealVoucher}
+                            onChange={handleChange}
+                          />
+                          <span className='font-medium text-slate-800'>
+                            Vale Alimentação / Refeição
+                          </span>
+                        </label>
+
+                        {formData.mealVoucher ? (
+                          <div className='mt-4'>
+                            <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                              Tipo de VA
+                            </label>
+                            <select
+                              name='mealVoucherType'
+                              value={formData.mealVoucherType}
+                              onChange={handleChange}
+                              className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                            >
+                              <option value=''>Selecione o tipo</option>
+                              <option value='Caju'>Caju</option>
+                            </select>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <label className='flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4'>
                         <input
                           type='checkbox'
                           name='healthPlan'
@@ -497,6 +745,18 @@ const Benefits = () => {
                         />
                         <span className='font-medium text-slate-800'>
                           Plano de Saúde
+                        </span>
+                      </label>
+
+                      <label className='flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                        <input
+                          type='checkbox'
+                          name='dentalPlan'
+                          checked={formData.dentalPlan}
+                          onChange={handleChange}
+                        />
+                        <span className='font-medium text-slate-800'>
+                          Plano Odontológico
                         </span>
                       </label>
 

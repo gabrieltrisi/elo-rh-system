@@ -14,6 +14,7 @@ import documentRoutes from './routes/documentRoutes.js';
 import warningRoutes from './routes/warningRoutes.js';
 import leaveRoutes from './routes/leaveRoutes.js';
 import suspensionRoutes from './routes/suspensionRoutes.js';
+import benefitRoutes from './routes/benefitRoutes.js';
 
 const app = express();
 
@@ -88,6 +89,7 @@ app.use('/documents', documentRoutes);
 app.use('/warnings', warningRoutes);
 app.use('/leaves', leaveRoutes);
 app.use('/suspensions', suspensionRoutes);
+app.use('/benefits', benefitRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

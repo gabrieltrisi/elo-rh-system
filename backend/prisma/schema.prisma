@@ -21,6 +21,7 @@ model Company {
   warnings       Warning[]
   employeeLeaves EmployeeLeave[]
   suspensions    Suspension[]
+  benefits       Benefit[]
 }
 
 model User {
@@ -68,6 +69,7 @@ model Employee {
   warnings       Warning[]
   employeeLeaves EmployeeLeave[]
   suspensions    Suspension[]
+  benefits       Benefit[]
 
   @@unique([companyId, email])
   @@unique([companyId, cpf])
@@ -246,4 +248,26 @@ model Suspension {
   @@index([employeeId])
   @@index([companyId])
   @@index([status])
+}
+
+model Benefit {
+  id                   Int       @id @default(autoincrement())
+  employeeId           Int
+  companyId            Int
+  transportVoucher     Boolean   @default(false)
+  transportVoucherType String?
+  mealVoucher          Boolean   @default(false)
+  mealVoucherType      String?
+  healthPlan           Boolean   @default(false)
+  dentalPlan           Boolean   @default(false)
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, companyId])
+  @@index([employeeId])
+  @@index([companyId])
 }
