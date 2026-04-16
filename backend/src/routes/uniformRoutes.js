@@ -8,12 +8,8 @@ import {
 
 const router = express.Router();
 
-router.post('/uniforms', authMiddleware, createUniform);
-router.get('/uniforms', authMiddleware, getAllUniforms);
-router.get(
-  '/uniforms/employee/:employeeId',
-  authMiddleware,
-  getUniformsByEmployee
-);
+router.post('/', authMiddleware, createUniform);
+router.get('/', authMiddleware, getAllUniforms);
+router.get('/employee/:employeeId', authMiddleware, getUniformsByEmployee);
 
 export default router;

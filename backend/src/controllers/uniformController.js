@@ -22,12 +22,12 @@ export const createUniform = async (req, res, next) => {
   try {
     const uniform = await createUniformService(parsedBody);
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Fardamento cadastrado com sucesso',
       uniform,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -35,25 +35,30 @@ export const getAllUniforms = async (req, res, next) => {
   try {
     const uniforms = await getAllUniformsService();
 
-    res.json({
+    return res.json({
       message: 'Fardamentos encontrados com sucesso',
       uniforms,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 export const getUniformsByEmployee = async (req, res, next) => {
   try {
     const employeeId = Number(req.params.employeeId);
+
+    if (Number.isNaN(employeeId)) {
+      return next(new AppError('ID do colaborador inválido', 400));
+    }
+
     const uniforms = await getUniformsByEmployeeService(employeeId);
 
-    res.json({
+    return res.json({
       message: 'Fardamentos do colaborador encontrados com sucesso',
       uniforms,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
