@@ -48,7 +48,7 @@ export const getAllAdmissionForms = async (req, res, next) => {
       req.user.companyId
     );
 
-    return res.json({
+    return res.status(200).json({
       message: 'Formulários de pré-admissão encontrados com sucesso',
       admissionForms,
     });
@@ -67,8 +67,8 @@ export const getAdmissionFormByToken = async (req, res, next) => {
 
     const admissionForm = await getAdmissionFormByTokenService(token);
 
-    return res.json({
-      message: 'Formulário carregado com sucesso',
+    return res.status(200).json({
+      message: 'Formulário de pré-admissão carregado com sucesso',
       admissionForm,
     });
   } catch (error) {
@@ -111,7 +111,7 @@ export const submitAdmissionForm = async (req, res, next) => {
     );
 
     return res.status(201).json({
-      message: 'Formulário enviado com sucesso',
+      message: 'Formulário de pré-admissão enviado com sucesso',
       ...result,
     });
   } catch (error) {
