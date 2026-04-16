@@ -66,6 +66,8 @@ app.use(
 );
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/', (req, res) => {
@@ -96,7 +98,7 @@ app.use('/onboarding', onboardingRoutes);
 app.use('/admission', admissionRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({
+  return res.status(404).json({
     message: 'Rota não encontrada',
   });
 });

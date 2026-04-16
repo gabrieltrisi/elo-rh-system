@@ -1,36 +1,41 @@
 import axios from 'axios';
 
+const PUBLIC_ROUTES = ['/admission/public/'];
+
 const api = axios.create({
   baseURL: 'https://elo-backend-ajak.onrender.com',
 });
 
-// REQUEST
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    const requestUrl = `${config.url || ''}`;
 
-  if (!token) {
-    console.warn('⚠️ Token não encontrado no localStorage');
-  }
+    const isPublicRoute = PUBLIC_ROUTES.some((route) =>
+      requestUrl.includes(route)
+    );
 
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+    if (!isPublicRoute && token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
 
-  return config;
-});
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-// RESPONSE
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 🔥 TRATAMENTO GLOBAL DE ERRO
-    if (error.response?.status === 401) {
+    const requestUrl = `${error.config?.url || ''}`;
+    const isPublicRoute = PUBLIC_ROUTES.some((route) =>
+      requestUrl.includes(route)
+    );
+
+    if (error.response?.status === 401 && !isPublicRoute) {
       console.warn('🚨 Token inválido ou expirado');
 
-      // limpa sessão
       localStorage.removeItem('token');
-
-      // redireciona
       window.location.href = '/login';
     }
 

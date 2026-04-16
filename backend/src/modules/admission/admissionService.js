@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import prisma from '../../prisma/client.js';
 import AppError from '../../errors/AppError.js';
+import { sendAdmissionInviteEmail } from '../../services/emailService.js';
 
 const REQUIRED_DOCUMENT_CATEGORIES = [
   'RG',
@@ -48,9 +49,18 @@ const buildPublicLink = (token) => {
   return `${baseUrl}/admission/${token}`;
 };
 
-//////////////////////////////////////////////////////////
-// CREATE FORM
-//////////////////////////////////////////////////////////
+const buildWhatsAppLink = ({ employeeName, phone, publicLink }) => {
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
+
+  if (!cleanPhone) return null;
+
+  const message = encodeURIComponent(
+    `Olá, ${employeeName || 'colaborador'}! Seu formulário de pré-admissão já está disponível. Acesse pelo link: ${publicLink}`
+  );
+
+  return `https://wa.me/${cleanPhone}?text=${message}`;
+};
+
 export const createAdmissionFormService = async (
   { employeeId, expiresAt, notes },
   companyId
@@ -108,9 +118,6 @@ export const createAdmissionFormService = async (
   };
 };
 
-//////////////////////////////////////////////////////////
-// GET ALL
-//////////////////////////////////////////////////////////
 export const getAllAdmissionFormsService = async (companyId) => {
   return await prisma.admissionForm.findMany({
     where: {
@@ -130,9 +137,6 @@ export const getAllAdmissionFormsService = async (companyId) => {
   });
 };
 
-//////////////////////////////////////////////////////////
-// GET BY TOKEN
-//////////////////////////////////////////////////////////
 export const getAdmissionFormByTokenService = async (token) => {
   const admissionForm = await prisma.admissionForm.findUnique({
     where: {
@@ -162,9 +166,6 @@ export const getAdmissionFormByTokenService = async (token) => {
   return admissionForm;
 };
 
-//////////////////////////////////////////////////////////
-// SUBMIT FORM
-//////////////////////////////////////////////////////////
 export const submitAdmissionFormService = async (token, data, files = []) => {
   const admissionForm = await prisma.admissionForm.findUnique({
     where: {
@@ -186,9 +187,6 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     throw new AppError('Este link de pré-admissão expirou', 410);
   }
 
-  //////////////////////////////////////////////////////
-  // SALVA SUBMISSÃO
-  //////////////////////////////////////////////////////
   const submission = await prisma.admissionFormSubmission.create({
     data: {
       admissionFormId: admissionForm.id,
@@ -213,9 +211,6 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     },
   });
 
-  //////////////////////////////////////////////////////
-  // ATUALIZA EMPLOYEE
-  //////////////////////////////////////////////////////
   await prisma.employee.update({
     where: {
       id: admissionForm.employeeId,
@@ -237,9 +232,6 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     },
   });
 
-  //////////////////////////////////////////////////////
-  // DOCUMENTOS
-  //////////////////////////////////////////////////////
   if (files.length > 0) {
     const docsToCreate = files.map((file) => {
       const category =
@@ -263,9 +255,6 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     });
   }
 
-  //////////////////////////////////////////////////////
-  // ATUALIZA ONBOARDING
-  //////////////////////////////////////////////////////
   const onboarding = await prisma.onboarding.findUnique({
     where: {
       employeeId: admissionForm.employeeId,
@@ -287,9 +276,6 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     });
   }
 
-  //////////////////////////////////////////////////////
-  // FINALIZA FORM
-  //////////////////////////////////////////////////////
   const updatedAdmissionForm = await prisma.admissionForm.update({
     where: {
       id: admissionForm.id,
@@ -307,5 +293,59 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
   return {
     admissionForm: updatedAdmissionForm,
     submission,
+  };
+};
+
+export const sendAdmissionInviteService = async (
+  admissionFormId,
+  companyId
+) => {
+  const admissionForm = await prisma.admissionForm.findFirst({
+    where: {
+      id: Number(admissionFormId),
+      companyId: Number(companyId),
+    },
+    include: {
+      employee: true,
+    },
+  });
+
+  if (!admissionForm) {
+    throw new AppError('Formulário de pré-admissão não encontrado', 404);
+  }
+
+  const publicLink = buildPublicLink(admissionForm.token);
+  const whatsappLink = buildWhatsAppLink({
+    employeeName: admissionForm.employee?.name,
+    phone: admissionForm.employee?.phone,
+    publicLink,
+  });
+
+  if (admissionForm.employee?.email) {
+    await sendAdmissionInviteEmail({
+      to: admissionForm.employee.email,
+      employeeName: admissionForm.employee.name,
+      publicLink,
+    });
+  }
+
+  const updated = await prisma.admissionForm.update({
+    where: {
+      id: admissionForm.id,
+    },
+    data: {
+      sentAt: new Date(),
+      status:
+        admissionForm.status === 'PENDENTE' ? 'ENVIADO' : admissionForm.status,
+    },
+    include: {
+      employee: true,
+    },
+  });
+
+  return {
+    admissionForm: updated,
+    publicLink,
+    whatsappLink,
   };
 };

@@ -4,6 +4,7 @@ import {
   getAllAdmissionFormsService,
   getAdmissionFormByTokenService,
   submitAdmissionFormService,
+  sendAdmissionInviteService,
 } from './admissionService.js';
 
 export const createAdmissionForm = async (req, res, next) => {
@@ -112,6 +113,29 @@ export const submitAdmissionForm = async (req, res, next) => {
 
     return res.status(201).json({
       message: 'Formulário de pré-admissão enviado com sucesso',
+      ...result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const sendAdmissionInvite = async (req, res, next) => {
+  try {
+    if (!req.user?.companyId) {
+      return next(new AppError('Empresa do usuário não identificada', 401));
+    }
+
+    const { id } = req.params;
+
+    if (!id) {
+      return next(new AppError('ID do formulário não informado', 400));
+    }
+
+    const result = await sendAdmissionInviteService(id, req.user.companyId);
+
+    return res.status(200).json({
+      message: 'Convite de pré-admissão preparado com sucesso',
       ...result,
     });
   } catch (error) {
