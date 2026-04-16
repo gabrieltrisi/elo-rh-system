@@ -8,6 +8,7 @@ const prisma =
     log: ['error', 'warn'],
   });
 
+// evita múltiplas instâncias em dev
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
