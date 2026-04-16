@@ -16,6 +16,7 @@ import leaveRoutes from './routes/leaveRoutes.js';
 import suspensionRoutes from './routes/suspensionRoutes.js';
 import benefitRoutes from './routes/benefitRoutes.js';
 import onboardingRoutes from './routes/onboardingRoutes.js';
+import admissionRoutes from './modules/admission/admissionRoutes.js';
 
 const app = express();
 
@@ -92,6 +93,7 @@ app.use('/leaves', leaveRoutes);
 app.use('/suspensions', suspensionRoutes);
 app.use('/benefits', benefitRoutes);
 app.use('/onboarding', onboardingRoutes);
+app.use('/admission', admissionRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
