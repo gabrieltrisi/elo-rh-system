@@ -3,6 +3,7 @@ import authMiddleware from '../middlewares/authMiddleware.js';
 import {
   createOnboarding,
   getOnboardings,
+  getOnboardingByEmployee,
   updateOnboarding,
   sendWelcomeOnboarding,
   generateAccessTemplate,
@@ -12,8 +13,8 @@ const router = express.Router();
 
 router.post('/', authMiddleware, createOnboarding);
 router.get('/', authMiddleware, getOnboardings);
+router.get('/employee/:employeeId', authMiddleware, getOnboardingByEmployee);
 router.put('/:id', authMiddleware, updateOnboarding);
-
 router.post('/:id/send-welcome', authMiddleware, sendWelcomeOnboarding);
 router.get('/:id/access-template', authMiddleware, generateAccessTemplate);
 

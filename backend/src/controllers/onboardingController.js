@@ -5,20 +5,41 @@ const normalizeBoolean = (value) => Boolean(value);
 
 const normalizeNullableDate = (value) => {
   if (!value) return null;
+
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed;
 };
 
-const safePrisma = () => {
-  if (!prisma || !prisma.onboarding) {
-    throw new Error('Prisma não inicializado corretamente');
-  }
+const buildSystemsTemplate = (employee) => {
+  const name = employee?.name || 'usuario';
+  const first = name.split(' ')[0]?.toLowerCase() || 'usuario';
+
+  return [
+    {
+      systemName: 'E-mail Corporativo',
+      accessLink: 'https://mail.google.com',
+      username: `${first}@empresa.com.br`,
+      notes: 'Ajustar domínio real da empresa',
+    },
+    {
+      systemName: 'ERP / Sistema Interno',
+      accessLink: 'https://erp.empresa.com.br',
+      username: first,
+      notes: 'Criar acesso inicial',
+    },
+    {
+      systemName: 'Portal RH / Ponto',
+      accessLink: 'https://rh.empresa.com.br',
+      username: first,
+      notes: 'Liberar acesso com senha provisória',
+    },
+  ];
 };
 
 export const createOnboarding = async (req, res) => {
   try {
-    safePrisma();
-
     const {
       employeeId,
       status,
@@ -32,23 +53,34 @@ export const createOnboarding = async (req, res) => {
     const companyId = req.user.companyId;
 
     if (!employeeId) {
-      return res.status(400).json({ message: 'Selecione o colaborador' });
+      return res.status(400).json({
+        message: 'Selecione o colaborador',
+      });
     }
 
     const employee = await prisma.employee.findFirst({
-      where: { id: Number(employeeId), companyId },
+      where: {
+        id: Number(employeeId),
+        companyId,
+      },
     });
 
     if (!employee) {
-      return res.status(404).json({ message: 'Colaborador não encontrado' });
+      return res.status(404).json({
+        message: 'Colaborador não encontrado',
+      });
     }
 
-    const exists = await prisma.onboarding.findUnique({
-      where: { employeeId: Number(employeeId) },
+    const existing = await prisma.onboarding.findUnique({
+      where: {
+        employeeId: Number(employeeId),
+      },
     });
 
-    if (exists) {
-      return res.status(400).json({ message: 'Onboarding já existe' });
+    if (existing) {
+      return res.status(400).json({
+        message: 'Onboarding já existe',
+      });
     }
 
     const onboarding = await prisma.onboarding.create({
@@ -62,74 +94,171 @@ export const createOnboarding = async (req, res) => {
         completedAt: normalizeNullableDate(completedAt),
         notes: notes || null,
       },
-      include: { employee: true },
+      include: {
+        employee: true,
+      },
     });
 
-    res.status(201).json({ onboarding });
-  } catch (err) {
-    console.error('CREATE ERROR:', err);
-    res.status(500).json({
-      message: err.message || 'Erro ao criar onboarding',
+    return res.status(201).json({
+      message: 'Onboarding criado com sucesso',
+      onboarding,
+    });
+  } catch (error) {
+    console.error('CREATE ONBOARDING ERROR:', error);
+    return res.status(500).json({
+      message: 'Erro ao criar onboarding',
+      error: error.message,
     });
   }
 };
 
 export const getOnboardings = async (req, res) => {
   try {
-    safePrisma();
-
     const companyId = req.user.companyId;
 
     const onboardings = await prisma.onboarding.findMany({
-      where: { companyId },
-      include: { employee: true },
-      orderBy: { createdAt: 'desc' },
+      where: {
+        companyId,
+      },
+      include: {
+        employee: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
-    res.json({ onboardings });
-  } catch (err) {
-    console.error('GET ERROR:', err);
-    res.status(500).json({
-      message: err.message || 'Erro ao buscar onboardings',
+    return res.json({
+      onboardings,
+    });
+  } catch (error) {
+    console.error('GET ONBOARDINGS ERROR:', error);
+    return res.status(500).json({
+      message: 'Erro ao buscar onboardings',
+      error: error.message,
+    });
+  }
+};
+
+export const getOnboardingByEmployee = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const companyId = req.user.companyId;
+
+    const onboarding = await prisma.onboarding.findFirst({
+      where: {
+        employeeId: Number(employeeId),
+        companyId,
+      },
+      include: {
+        employee: true,
+      },
+    });
+
+    if (!onboarding) {
+      return res.status(404).json({
+        message: 'Onboarding não encontrado',
+      });
+    }
+
+    return res.json({
+      onboarding,
+    });
+  } catch (error) {
+    console.error('GET ONBOARDING BY EMPLOYEE ERROR:', error);
+    return res.status(500).json({
+      message: 'Erro ao buscar onboarding',
+      error: error.message,
     });
   }
 };
 
 export const updateOnboarding = async (req, res) => {
   try {
-    safePrisma();
-
     const { id } = req.params;
+    const companyId = req.user.companyId;
 
-    const onboarding = await prisma.onboarding.update({
-      where: { id: Number(id) },
-      data: req.body,
-      include: { employee: true },
+    const existing = await prisma.onboarding.findFirst({
+      where: {
+        id: Number(id),
+        companyId,
+      },
     });
 
-    res.json({ onboarding });
-  } catch (err) {
-    console.error('UPDATE ERROR:', err);
-    res.status(500).json({
-      message: err.message || 'Erro ao atualizar',
+    if (!existing) {
+      return res.status(404).json({
+        message: 'Onboarding não encontrado',
+      });
+    }
+
+    const onboarding = await prisma.onboarding.update({
+      where: {
+        id: Number(id),
+      },
+      data: {
+        ...(req.body.status !== undefined ? { status: req.body.status } : {}),
+        ...(req.body.welcomeSent !== undefined
+          ? { welcomeSent: normalizeBoolean(req.body.welcomeSent) }
+          : {}),
+        ...(req.body.accessCreated !== undefined
+          ? { accessCreated: normalizeBoolean(req.body.accessCreated) }
+          : {}),
+        ...(req.body.startDate !== undefined
+          ? {
+              startDate:
+                normalizeNullableDate(req.body.startDate) || existing.startDate,
+            }
+          : {}),
+        ...(req.body.completedAt !== undefined
+          ? { completedAt: normalizeNullableDate(req.body.completedAt) }
+          : {}),
+        ...(req.body.notes !== undefined
+          ? { notes: req.body.notes || null }
+          : {}),
+      },
+      include: {
+        employee: true,
+      },
+    });
+
+    return res.json({
+      message: 'Onboarding atualizado com sucesso',
+      onboarding,
+    });
+  } catch (error) {
+    console.error('UPDATE ONBOARDING ERROR:', error);
+    return res.status(500).json({
+      message: 'Erro ao atualizar onboarding',
+      error: error.message,
     });
   }
 };
 
 export const sendWelcomeOnboarding = async (req, res) => {
   try {
-    safePrisma();
-
     const { id } = req.params;
     const companyId = req.user.companyId;
 
     const onboarding = await prisma.onboarding.findFirst({
-      where: { id: Number(id), companyId },
-      include: { employee: true },
+      where: {
+        id: Number(id),
+        companyId,
+      },
+      include: {
+        employee: true,
+      },
     });
 
     if (!onboarding) {
-      return res.status(404).json({ message: 'Não encontrado' });
+      return res.status(404).json({
+        message: 'Onboarding não encontrado',
+      });
+    }
+
+    if (!onboarding.employee?.email) {
+      return res.status(400).json({
+        message: 'Colaborador não possui e-mail cadastrado',
+      });
     }
 
     await sendWelcomeEmail({
@@ -138,59 +267,82 @@ export const sendWelcomeOnboarding = async (req, res) => {
     });
 
     const updated = await prisma.onboarding.update({
-      where: { id: Number(id) },
-      data: { welcomeSent: true },
-      include: { employee: true },
+      where: {
+        id: Number(id),
+      },
+      data: {
+        welcomeSent: true,
+        status:
+          onboarding.status === 'PENDENTE' ? 'EM_ANDAMENTO' : onboarding.status,
+      },
+      include: {
+        employee: true,
+      },
     });
 
-    res.json({
+    return res.json({
       message: 'Email enviado com sucesso 🚀',
       onboarding: updated,
     });
-  } catch (err) {
-    console.error('EMAIL ERROR:', err);
-    res.status(500).json({
-      message: err.message || 'Erro ao enviar email',
+  } catch (error) {
+    console.error('SEND WELCOME ERROR:', error);
+    return res.status(500).json({
+      message: 'Erro ao enviar email',
+      error: error.message,
     });
   }
 };
 
 export const generateAccessTemplate = async (req, res) => {
   try {
-    safePrisma();
-
     const { id } = req.params;
     const companyId = req.user.companyId;
 
     const onboarding = await prisma.onboarding.findFirst({
-      where: { id: Number(id), companyId },
-      include: { employee: true },
+      where: {
+        id: Number(id),
+        companyId,
+      },
+      include: {
+        employee: true,
+      },
     });
 
     if (!onboarding) {
-      return res.status(404).json({ message: 'Não encontrado' });
+      return res.status(404).json({
+        message: 'Onboarding não encontrado',
+      });
     }
 
-    const systems = [
-      {
-        systemName: 'E-mail',
-        username: onboarding.employee.name.split(' ')[0].toLowerCase(),
+    const systems = buildSystemsTemplate(onboarding.employee);
+
+    const updated = await prisma.onboarding.update({
+      where: {
+        id: Number(id),
       },
-    ];
-
-    await prisma.onboarding.update({
-      where: { id: Number(id) },
-      data: { accessCreated: true },
+      data: {
+        accessCreated: true,
+        status:
+          onboarding.status === 'PENDENTE' ? 'EM_ANDAMENTO' : onboarding.status,
+      },
+      include: {
+        employee: true,
+      },
     });
 
-    res.json({
+    return res.json({
       message: 'Acessos gerados',
-      accessTemplate: { systems },
+      onboarding: updated,
+      accessTemplate: {
+        employee: onboarding.employee.name,
+        systems,
+      },
     });
-  } catch (err) {
-    console.error('ACCESS ERROR:', err);
-    res.status(500).json({
-      message: err.message || 'Erro ao gerar acessos',
+  } catch (error) {
+    console.error('GENERATE ACCESS ERROR:', error);
+    return res.status(500).json({
+      message: 'Erro ao gerar acessos',
+      error: error.message,
     });
   }
 };
