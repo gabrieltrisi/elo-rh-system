@@ -3,16 +3,15 @@ import prisma from './prisma/client.js';
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 
   try {
-    const models = Object.keys(prisma).filter(
-      (key) => !key.startsWith('_') && !key.startsWith('$')
-    );
-
-    console.log('📦 Prisma models disponíveis:', models);
-  } catch (err) {
-    console.error('Erro ao listar models do Prisma:', err);
+    console.log('Has onboarding delegate:', 'onboarding' in prisma);
+    console.log('Type of prisma.onboarding:', typeof prisma.onboarding);
+    console.log('Has employee delegate:', 'employee' in prisma);
+    console.log('Type of prisma.employee:', typeof prisma.employee);
+  } catch (error) {
+    console.error('Erro ao validar delegates do Prisma:', error);
   }
 });
