@@ -12,6 +12,7 @@ import Warnings from './pages/Warnings';
 import Documents from './pages/Documents';
 import Benefits from './pages/Benefits';
 import Onboarding from './pages/Onboarding';
+import PreAdmission from './pages/PreAdmission';
 import Leave from './pages/Leave';
 import Suspensions from './pages/Suspensions';
 import CalendarPage from './pages/CalendarPage';
@@ -23,8 +24,27 @@ import api from './services/api';
 function PlaceholderPage({ title, description }) {
   return (
     <div className='space-y-4'>
-      <h1 className='text-3xl font-bold'>{title}</h1>
-      <p>{description}</p>
+      <div>
+        <p className='text-sm font-medium uppercase tracking-wide text-slate-500'>
+          ELO
+        </p>
+        <h1 className='text-3xl font-bold text-slate-800'>{title}</h1>
+        <p className='mt-1 text-slate-500'>
+          {description || 'Esta tela será construída no próximo passo.'}
+        </p>
+      </div>
+
+      <div className='rounded-2xl border border-slate-200 bg-white p-6 shadow-sm'>
+        <div className='rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center'>
+          <h2 className='text-xl font-semibold text-slate-800'>
+            Módulo em preparação
+          </h2>
+          <p className='mt-2 text-sm text-slate-500'>
+            Esta área já está reservada no sistema e será construída no próximo
+            passo.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -42,6 +62,7 @@ function PrivateApp({ onLogout, badges }) {
     >
       {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
       {page === 'employees' && <Employees />}
+      {page === 'preadmission' && <PreAdmission />}
       {page === 'stock' && <UniformStock />}
       {page === 'vacations' && <Vacations />}
       {page === 'certificates' && <Certificates />}
@@ -53,9 +74,19 @@ function PrivateApp({ onLogout, badges }) {
       {page === 'suspensions' && <Suspensions />}
       {page === 'calendar' && <CalendarPage />}
 
-      {page === 'timesheet' && <PlaceholderPage title='Folha de Ponto' />}
+      {page === 'timesheet' && (
+        <PlaceholderPage
+          title='Folha de Ponto'
+          description='Controle de ponto e acompanhamento das jornadas.'
+        />
+      )}
 
-      {page === 'bankHours' && <PlaceholderPage title='Banco de Horas' />}
+      {page === 'bankHours' && (
+        <PlaceholderPage
+          title='Banco de Horas'
+          description='Acompanhe créditos, débitos e saldo de horas.'
+        />
+      )}
     </Layout>
   );
 }
@@ -82,6 +113,8 @@ function App() {
       setWarningCount((warnings.data?.warnings || []).length);
     } catch (err) {
       console.error('Erro ao carregar badges', err);
+      setPendingCertificates(0);
+      setWarningCount(0);
     }
   };
 
@@ -99,10 +132,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 🔥 ROTA PÚBLICA (SEM LOGIN) */}
         <Route path='/admission/:token' element={<AdmissionForm />} />
 
-        {/* 🔐 LOGIN */}
         <Route
           path='/login'
           element={
@@ -114,7 +145,6 @@ function App() {
           }
         />
 
-        {/* 🔒 APP PRIVADO */}
         <Route
           path='/*'
           element={
