@@ -255,13 +255,24 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     });
   }
 
-  const onboarding = await prisma.onboarding.findUnique({
+  let onboarding = await prisma.onboarding.findUnique({
     where: {
       employeeId: admissionForm.employeeId,
     },
   });
 
-  if (onboarding) {
+  if (!onboarding) {
+    onboarding = await prisma.onboarding.create({
+      data: {
+        employeeId: admissionForm.employeeId,
+        companyId: admissionForm.companyId,
+        status: 'EM_ANDAMENTO',
+        welcomeSent: false,
+        accessCreated: false,
+        notes: 'Criado automaticamente após preenchimento da pré-admissão',
+      },
+    });
+  } else {
     await prisma.onboarding.update({
       where: {
         id: onboarding.id,
@@ -270,7 +281,7 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
         status:
           onboarding.status === 'PENDENTE' ? 'EM_ANDAMENTO' : onboarding.status,
         notes: normalizeNullableString(
-          `${onboarding.notes || ''}\nFormulário preenchido pelo colaborador`
+          `${onboarding.notes || ''}\nPré-admissão concluída automaticamente.`
         ),
       },
     });
