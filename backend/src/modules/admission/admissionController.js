@@ -5,6 +5,7 @@ import {
   getAdmissionFormByTokenService,
   submitAdmissionFormService,
   sendAdmissionInviteService,
+  startOnboardingFromAdmissionService,
 } from './admissionService.js';
 
 export const createAdmissionForm = async (req, res, next) => {
@@ -137,6 +138,34 @@ export const sendAdmissionInvite = async (req, res, next) => {
     return res.status(200).json({
       message: 'Convite de pré-admissão preparado com sucesso',
       ...result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const startOnboardingFromAdmission = async (req, res, next) => {
+  try {
+    if (!req.user?.companyId) {
+      return next(new AppError('Empresa do usuário não identificada', 401));
+    }
+
+    const { id } = req.params;
+    const { startDate } = req.body;
+
+    if (!id) {
+      return next(new AppError('ID da pré-admissão não informado', 400));
+    }
+
+    const onboarding = await startOnboardingFromAdmissionService(
+      id,
+      startDate,
+      req.user.companyId
+    );
+
+    return res.status(200).json({
+      message: 'Onboarding iniciado com sucesso',
+      onboarding,
     });
   } catch (error) {
     return next(error);

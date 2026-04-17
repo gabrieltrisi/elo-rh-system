@@ -103,7 +103,6 @@ export const createAdmissionFormService = async (
       token,
       status: 'PENDENTE',
       notes: normalizeNullableString(notes),
-      sentAt: new Date(),
       expiresAt: parseNullableDate(expiresAt),
     },
     include: {
@@ -241,7 +240,7 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
 
       return {
         title: category,
-        description: 'Enviado pelo colaborador no formulário',
+        description: 'Enviado pelo colaborador no formulário de pré-admissão',
         category,
         fileName: file.originalname,
         fileUrl: `/uploads/admission/${file.filename}`,
@@ -252,38 +251,6 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
 
     await prisma.document.createMany({
       data: docsToCreate,
-    });
-  }
-
-  let onboarding = await prisma.onboarding.findUnique({
-    where: {
-      employeeId: admissionForm.employeeId,
-    },
-  });
-
-  if (!onboarding) {
-    onboarding = await prisma.onboarding.create({
-      data: {
-        employeeId: admissionForm.employeeId,
-        companyId: admissionForm.companyId,
-        status: 'EM_ANDAMENTO',
-        welcomeSent: false,
-        accessCreated: false,
-        notes: 'Criado automaticamente após preenchimento da pré-admissão',
-      },
-    });
-  } else {
-    await prisma.onboarding.update({
-      where: {
-        id: onboarding.id,
-      },
-      data: {
-        status:
-          onboarding.status === 'PENDENTE' ? 'EM_ANDAMENTO' : onboarding.status,
-        notes: normalizeNullableString(
-          `${onboarding.notes || ''}\nPré-admissão concluída automaticamente.`
-        ),
-      },
     });
   }
 
@@ -359,4 +326,72 @@ export const sendAdmissionInviteService = async (
     publicLink,
     whatsappLink,
   };
+};
+
+export const startOnboardingFromAdmissionService = async (
+  admissionFormId,
+  startDate,
+  companyId
+) => {
+  const admissionForm = await prisma.admissionForm.findFirst({
+    where: {
+      id: Number(admissionFormId),
+      companyId: Number(companyId),
+    },
+    include: {
+      employee: true,
+    },
+  });
+
+  if (!admissionForm) {
+    throw new AppError('Pré-admissão não encontrada', 404);
+  }
+
+  if (!startDate) {
+    throw new AppError('Data de início é obrigatória', 400);
+  }
+
+  const parsedStartDate = parseRequiredDate(
+    startDate,
+    'Data de início do colaborador'
+  );
+
+  const existingOnboarding = await prisma.onboarding.findUnique({
+    where: {
+      employeeId: admissionForm.employeeId,
+    },
+  });
+
+  if (existingOnboarding) {
+    throw new AppError('Já existe onboarding para este colaborador', 400);
+  }
+
+  await prisma.admissionForm.update({
+    where: {
+      id: admissionForm.id,
+    },
+    data: {
+      startDate: parsedStartDate,
+      approvedAt: new Date(),
+      status: 'APROVADO',
+    },
+  });
+
+  const onboarding = await prisma.onboarding.create({
+    data: {
+      employeeId: admissionForm.employeeId,
+      companyId: admissionForm.companyId,
+      status: 'EM_ANDAMENTO',
+      welcomeSent: false,
+      accessCreated: false,
+      startDate: parsedStartDate,
+      notes:
+        'Onboarding iniciado automaticamente após aprovação da pré-admissão',
+    },
+    include: {
+      employee: true,
+    },
+  });
+
+  return onboarding;
 };

@@ -9,6 +9,7 @@ import {
   getAdmissionFormByToken,
   submitAdmissionForm,
   sendAdmissionInvite,
+  startOnboardingFromAdmission,
 } from './admissionController.js';
 
 const router = express.Router();
@@ -34,6 +35,11 @@ const upload = multer({ storage });
 router.post('/', authMiddleware, createAdmissionForm);
 router.get('/', authMiddleware, getAllAdmissionForms);
 router.post('/:id/send', authMiddleware, sendAdmissionInvite);
+router.post(
+  '/:id/start-onboarding',
+  authMiddleware,
+  startOnboardingFromAdmission
+);
 
 router.get('/public/:token', getAdmissionFormByToken);
 router.post('/public/:token', upload.any(), submitAdmissionForm);

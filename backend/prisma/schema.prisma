@@ -23,6 +23,7 @@ model Company {
   suspensions    Suspension[]
   benefits       Benefit[]
   onboardings    Onboarding[]
+  admissionForms AdmissionForm[]
 }
 
 model User {
@@ -72,6 +73,7 @@ model Employee {
   suspensions    Suspension[]
   benefits       Benefit[]
   onboarding     Onboarding?
+  admissionForms AdmissionForm[]
 
   @@unique([companyId, email])
   @@unique([companyId, cpf])
@@ -295,4 +297,56 @@ model Onboarding {
   company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+}
+
+model AdmissionForm {
+  id             Int       @id @default(autoincrement())
+  employeeId     Int
+  companyId      Int
+  token          String    @unique
+  status         String    @default("PENDENTE")
+  startDate      DateTime?
+  approvedAt     DateTime?
+  expiresAt      DateTime?
+  sentAt         DateTime?
+  completedAt    DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  submissions    AdmissionFormSubmission[]
+
+  @@index([companyId])
+  @@index([employeeId])
+}
+
+model AdmissionFormSubmission {
+  id              Int       @id @default(autoincrement())
+  admissionFormId Int
+  fullName        String
+  cpf             String
+  birthDate       DateTime
+  maritalStatus   String
+  email           String
+  phone           String
+  role            String
+  department      String
+  admissionDate   DateTime
+  shirtSize       String?
+  pantsSize       String?
+  bootSize        String?
+  notes           String?
+  address         String?
+  bankName        String?
+  bankAgency      String?
+  bankAccount     String?
+  pixKey          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  admissionForm   AdmissionForm @relation(fields: [admissionFormId], references: [id], onDelete: Cascade)
+
+  @@index([admissionFormId])
 }
