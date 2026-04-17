@@ -7,6 +7,10 @@ const initialForm = {
   notes: '',
 };
 
+const initialStartOnboardingForm = {
+  startDate: '',
+};
+
 const statusConfig = {
   PENDENTE: {
     label: 'Pendente',
@@ -19,6 +23,10 @@ const statusConfig = {
   RESPONDIDO: {
     label: 'Respondido',
     badge: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
+  },
+  APROVADO: {
+    label: 'Aprovado',
+    badge: 'border border-violet-200 bg-violet-50 text-violet-700',
   },
   CONCLUIDO: {
     label: 'Concluído',
@@ -49,6 +57,8 @@ const normalizeAdmissionForm = (item) => ({
   companyId: Number(item.companyId),
   token: item.token || '',
   status: item.status || 'PENDENTE',
+  startDate: item.startDate || '',
+  approvedAt: item.approvedAt || '',
   expiresAt: item.expiresAt || '',
   sentAt: item.sentAt || '',
   completedAt: item.completedAt || '',
@@ -69,6 +79,7 @@ const InfoCard = ({ title, value, subtitle, tone = 'slate' }) => {
     amber: 'border-amber-200 bg-amber-50 text-amber-800',
     green: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     red: 'border-red-200 bg-red-50 text-red-800',
+    violet: 'border-violet-200 bg-violet-50 text-violet-800',
   };
 
   return (
@@ -104,12 +115,18 @@ const PreAdmission = () => {
   const [activeTab, setActiveTab] = useState('cards');
 
   const [formData, setFormData] = useState(initialForm);
-  const [selectedForm, setSelectedForm] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const [isStartDrawerOpen, setIsStartDrawerOpen] = useState(false);
+  const [selectedAdmission, setSelectedAdmission] = useState(null);
+  const [startOnboardingForm, setStartOnboardingForm] = useState(
+    initialStartOnboardingForm
+  );
 
   const [saving, setSaving] = useState(false);
   const [sendingInviteId, setSendingInviteId] = useState(null);
   const [copyingId, setCopyingId] = useState(null);
+  const [startingOnboardingId, setStartingOnboardingId] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -146,32 +163,43 @@ const PreAdmission = () => {
     }
   };
 
-  const openDrawer = (item = null) => {
-    if (item) {
-      setSelectedForm(item);
-      setFormData({
-        employeeId: String(item.employeeId),
-        expiresAt: item.expiresAt ? item.expiresAt.slice(0, 10) : '',
-        notes: item.notes || '',
-      });
-    } else {
-      setSelectedForm(null);
-      setFormData(initialForm);
-    }
-
+  const openDrawer = () => {
+    setFormData(initialForm);
     setIsDrawerOpen(true);
   };
 
   const closeDrawer = () => {
-    setSelectedForm(null);
     setFormData(initialForm);
     setIsDrawerOpen(false);
+  };
+
+  const openStartDrawer = (item) => {
+    setSelectedAdmission(item);
+    setStartOnboardingForm({
+      startDate: item.startDate ? item.startDate.slice(0, 10) : '',
+    });
+    setIsStartDrawerOpen(true);
+  };
+
+  const closeStartDrawer = () => {
+    setSelectedAdmission(null);
+    setStartOnboardingForm(initialStartOnboardingForm);
+    setIsStartDrawerOpen(false);
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleStartOnboardingChange = (e) => {
+    const { name, value } = e.target;
+
+    setStartOnboardingForm((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -228,7 +256,9 @@ const PreAdmission = () => {
 
       if (whatsappLink) {
         const shouldOpenWhatsapp = window.confirm(
-          `${res.data?.message || 'Convite preparado com sucesso.'}\n\nDeseja abrir o WhatsApp agora?`
+          `${
+            res.data?.message || 'Convite preparado com sucesso.'
+          }\n\nDeseja abrir o WhatsApp agora?`
         );
 
         if (shouldOpenWhatsapp) {
@@ -236,7 +266,9 @@ const PreAdmission = () => {
         }
       } else {
         alert(
-          `${res.data?.message || 'Convite preparado com sucesso.'}\n\n${publicLink}`
+          `${res.data?.message || 'Convite preparado com sucesso.'}\n\n${
+            publicLink || ''
+          }`
         );
       }
     } catch (error) {
@@ -281,6 +313,44 @@ const PreAdmission = () => {
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
+  const handleStartOnboarding = async (e) => {
+    e.preventDefault();
+
+    if (!selectedAdmission?.id) {
+      alert('Pré-admissão inválida.');
+      return;
+    }
+
+    if (!startOnboardingForm.startDate) {
+      alert('Informe a data de início do colaborador.');
+      return;
+    }
+
+    try {
+      setStartingOnboardingId(selectedAdmission.id);
+
+      const res = await api.post(
+        `/admission/${selectedAdmission.id}/start-onboarding`,
+        {
+          startDate: startOnboardingForm.startDate,
+        }
+      );
+
+      await fetchAdmissionForms();
+      closeStartDrawer();
+
+      alert(res.data?.message || 'Onboarding iniciado com sucesso.');
+    } catch (error) {
+      console.error('Erro ao iniciar onboarding:', error);
+      alert(
+        error?.response?.data?.message ||
+          'Não foi possível iniciar o onboarding.'
+      );
+    } finally {
+      setStartingOnboardingId(null);
+    }
+  };
+
   const filteredForms = useMemo(() => {
     return admissionForms.filter((item) => {
       const matchesSearch = `
@@ -305,7 +375,10 @@ const PreAdmission = () => {
       (item) => item.status === 'ENVIADO'
     ).length;
     const answered = admissionForms.filter(
-      (item) => item.status === 'RESPONDIDO' || item.status === 'CONCLUIDO'
+      (item) => item.status === 'RESPONDIDO'
+    ).length;
+    const approved = admissionForms.filter(
+      (item) => item.status === 'APROVADO'
     ).length;
     const pending = admissionForms.filter(
       (item) => item.status === 'PENDENTE'
@@ -316,10 +389,7 @@ const PreAdmission = () => {
       pending,
       sent,
       answered,
-      expired: admissionForms.filter((item) => {
-        if (!item.expiresAt) return false;
-        return new Date(item.expiresAt) < new Date();
-      }).length,
+      approved,
     };
   }, [admissionForms]);
 
@@ -345,6 +415,7 @@ const PreAdmission = () => {
         {filteredForms.map((item) => {
           const publicLink = `${window.location.origin}/admission/${item.token}`;
           const lastSubmission = item.submissions?.[0] || null;
+          const canStartOnboarding = item.status === 'RESPONDIDO';
 
           return (
             <div
@@ -373,7 +444,7 @@ const PreAdmission = () => {
                 <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
                   <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
                     <p className='text-sm text-slate-500'>E-mail</p>
-                    <p className='mt-1 text-sm font-semibold text-slate-800 break-all'>
+                    <p className='mt-1 break-all text-sm font-semibold text-slate-800'>
                       {item.employeeEmail || 'Não informado'}
                     </p>
                   </div>
@@ -399,9 +470,23 @@ const PreAdmission = () => {
                     </p>
                   </div>
 
+                  <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                    <p className='text-sm text-slate-500'>Data de início</p>
+                    <p className='mt-1 text-sm font-semibold text-slate-800'>
+                      {formatDate(item.startDate)}
+                    </p>
+                  </div>
+
+                  <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                    <p className='text-sm text-slate-500'>Aprovado em</p>
+                    <p className='mt-1 text-sm font-semibold text-slate-800'>
+                      {formatDateTime(item.approvedAt)}
+                    </p>
+                  </div>
+
                   <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2'>
                     <p className='text-sm text-slate-500'>Link público</p>
-                    <p className='mt-1 text-xs font-medium text-slate-700 break-all'>
+                    <p className='mt-1 break-all text-xs font-medium text-slate-700'>
                       {publicLink}
                     </p>
                   </div>
@@ -455,6 +540,16 @@ const PreAdmission = () => {
                   >
                     WhatsApp
                   </button>
+
+                  {canStartOnboarding ? (
+                    <button
+                      type='button'
+                      onClick={() => openStartDrawer(item)}
+                      className='rounded-xl border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-100'
+                    >
+                      Iniciar onboarding
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -505,6 +600,9 @@ const PreAdmission = () => {
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Respondido em
                   </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Início
+                  </th>
                   <th className='px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Ações
                   </th>
@@ -512,58 +610,76 @@ const PreAdmission = () => {
               </thead>
 
               <tbody className='divide-y divide-slate-100'>
-                {filteredForms.map((item) => (
-                  <tr key={item.id} className='hover:bg-slate-50/70'>
-                    <td className='px-6 py-5 font-semibold text-slate-800'>
-                      {item.employeeName}
-                    </td>
+                {filteredForms.map((item) => {
+                  const canStartOnboarding = item.status === 'RESPONDIDO';
 
-                    <td className='px-6 py-5'>
-                      <StatusBadge status={item.status} />
-                    </td>
+                  return (
+                    <tr key={item.id} className='hover:bg-slate-50/70'>
+                      <td className='px-6 py-5 font-semibold text-slate-800'>
+                        {item.employeeName}
+                      </td>
 
-                    <td className='px-6 py-5 text-sm text-slate-700'>
-                      {item.employeeEmail || '-'}
-                    </td>
+                      <td className='px-6 py-5'>
+                        <StatusBadge status={item.status} />
+                      </td>
 
-                    <td className='px-6 py-5 text-sm text-slate-700'>
-                      {formatDateTime(item.sentAt)}
-                    </td>
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {item.employeeEmail || '-'}
+                      </td>
 
-                    <td className='px-6 py-5 text-sm text-slate-700'>
-                      {formatDateTime(item.completedAt)}
-                    </td>
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {formatDateTime(item.sentAt)}
+                      </td>
 
-                    <td className='px-6 py-5'>
-                      <div className='flex justify-center gap-2'>
-                        <button
-                          type='button'
-                          onClick={() => handleSendInvite(item)}
-                          disabled={sendingInviteId === item.id}
-                          className='rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60'
-                        >
-                          {sendingInviteId === item.id ? '...' : 'Enviar'}
-                        </button>
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {formatDateTime(item.completedAt)}
+                      </td>
 
-                        <button
-                          type='button'
-                          onClick={() => handleCopyLink(item)}
-                          className='rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50'
-                        >
-                          Link
-                        </button>
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {formatDate(item.startDate)}
+                      </td>
 
-                        <button
-                          type='button'
-                          onClick={() => handleOpenWhatsApp(item)}
-                          className='rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100'
-                        >
-                          WhatsApp
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      <td className='px-6 py-5'>
+                        <div className='flex flex-wrap justify-center gap-2'>
+                          <button
+                            type='button'
+                            onClick={() => handleSendInvite(item)}
+                            disabled={sendingInviteId === item.id}
+                            className='rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60'
+                          >
+                            {sendingInviteId === item.id ? '...' : 'Enviar'}
+                          </button>
+
+                          <button
+                            type='button'
+                            onClick={() => handleCopyLink(item)}
+                            className='rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50'
+                          >
+                            Link
+                          </button>
+
+                          <button
+                            type='button'
+                            onClick={() => handleOpenWhatsApp(item)}
+                            className='rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100'
+                          >
+                            WhatsApp
+                          </button>
+
+                          {canStartOnboarding ? (
+                            <button
+                              type='button'
+                              onClick={() => openStartDrawer(item)}
+                              className='rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100'
+                            >
+                              Iniciar onboarding
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -585,8 +701,8 @@ const PreAdmission = () => {
                 Pré-Admissão
               </h1>
               <p className='mt-4 text-lg text-slate-300'>
-                Gere links, acompanhe envios, centralize respostas e prepare a
-                entrada do colaborador antes da integração oficial.
+                Gere links, acompanhe envios, valide respostas e libere o início
+                do onboarding com data definida.
               </p>
             </div>
 
@@ -623,14 +739,14 @@ const PreAdmission = () => {
           <InfoCard
             title='Respondidos'
             value={stats.answered}
-            subtitle='Recebidos pelo RH'
+            subtitle='Prontos para validação'
             tone='green'
           />
           <InfoCard
-            title='Expirados'
-            value={stats.expired}
-            subtitle='Exigem nova ação'
-            tone='red'
+            title='Aprovados'
+            value={stats.approved}
+            subtitle='Já migrados ao onboarding'
+            tone='violet'
           />
         </div>
 
@@ -662,6 +778,7 @@ const PreAdmission = () => {
                 <option value='PENDENTE'>Pendente</option>
                 <option value='ENVIADO'>Enviado</option>
                 <option value='RESPONDIDO'>Respondido</option>
+                <option value='APROVADO'>Aprovado</option>
                 <option value='CONCLUIDO'>Concluído</option>
               </select>
             </div>
@@ -831,6 +948,113 @@ const PreAdmission = () => {
                     className='rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
                   >
                     {saving ? 'Gerando...' : 'Gerar pré-admissão'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isStartDrawerOpen && (
+        <div className='fixed inset-0 z-50 flex justify-end'>
+          <div
+            className='absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]'
+            onClick={closeStartDrawer}
+          />
+
+          <div className='relative flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-slate-50 shadow-2xl'>
+            <div className='border-b border-slate-200 bg-white px-6 py-5'>
+              <div className='flex items-start justify-between gap-4'>
+                <div className='flex items-start gap-3'>
+                  <button
+                    type='button'
+                    onClick={closeStartDrawer}
+                    className='rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50'
+                  >
+                    ← Voltar
+                  </button>
+
+                  <div>
+                    <div className='mb-2 inline-flex rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700'>
+                      Aprovação da pré-admissão
+                    </div>
+                    <h2 className='text-2xl font-bold text-slate-800'>
+                      Iniciar onboarding
+                    </h2>
+                    <p className='mt-1 text-sm text-slate-500'>
+                      Defina a data de início do colaborador para liberar o
+                      onboarding.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type='button'
+                  onClick={closeStartDrawer}
+                  className='rounded-xl px-3 py-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700'
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <form
+              onSubmit={handleStartOnboarding}
+              className='flex min-h-0 flex-1 flex-col'
+            >
+              <div className='flex-1 overflow-y-auto px-6 py-6'>
+                <div className='space-y-6'>
+                  <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+                    <div className='mb-5'>
+                      <h3 className='text-lg font-semibold text-slate-800'>
+                        Colaborador
+                      </h3>
+                      <p className='mt-1 text-sm text-slate-500'>
+                        Confirme a data oficial de início para criar o
+                        onboarding.
+                      </p>
+                    </div>
+
+                    <div className='mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                      <p className='text-sm text-slate-500'>Colaborador</p>
+                      <p className='mt-1 text-base font-semibold text-slate-800'>
+                        {selectedAdmission?.employeeName || '-'}
+                      </p>
+                    </div>
+
+                    <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                      Data de início
+                    </label>
+                    <input
+                      type='date'
+                      name='startDate'
+                      value={startOnboardingForm.startDate}
+                      onChange={handleStartOnboardingChange}
+                      className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                    />
+                  </section>
+                </div>
+              </div>
+
+              <div className='border-t border-slate-200 bg-white px-6 py-4'>
+                <div className='flex items-center justify-end gap-3'>
+                  <button
+                    type='button'
+                    onClick={closeStartDrawer}
+                    className='rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50'
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type='submit'
+                    disabled={startingOnboardingId === selectedAdmission?.id}
+                    className='rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60'
+                  >
+                    {startingOnboardingId === selectedAdmission?.id
+                      ? 'Iniciando...'
+                      : 'Confirmar e iniciar onboarding'}
                   </button>
                 </div>
               </div>
