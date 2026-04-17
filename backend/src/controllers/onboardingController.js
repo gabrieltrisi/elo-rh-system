@@ -1,5 +1,8 @@
 import prisma from '../prisma/client.js';
-import { sendWelcomeEmail } from '../services/emailService.js';
+import {
+  sendWelcomeEmail,
+  sendWelcomeAccessEmail,
+} from '../services/emailService.js';
 
 const normalizeBoolean = (value) => Boolean(value);
 
@@ -21,18 +24,21 @@ const buildSystemsTemplate = (employee) => {
       systemName: 'E-mail Corporativo',
       accessLink: 'https://mail.google.com',
       username: `${first}@empresa.com.br`,
+      temporaryPassword: `Temp@${first}123`,
       notes: 'Ajustar domínio real da empresa',
     },
     {
       systemName: 'ERP / Sistema Interno',
       accessLink: 'https://erp.empresa.com.br',
       username: first,
+      temporaryPassword: `Erp@${first}123`,
       notes: 'Criar acesso inicial',
     },
     {
       systemName: 'Portal RH / Ponto',
       accessLink: 'https://rh.empresa.com.br',
       username: first,
+      temporaryPassword: `Rh@${first}123`,
       notes: 'Liberar acesso com senha provisória',
     },
   ];
@@ -261,9 +267,12 @@ export const sendWelcomeOnboarding = async (req, res) => {
       });
     }
 
-    await sendWelcomeEmail({
+    const systems = buildSystemsTemplate(onboarding.employee);
+
+    await sendWelcomeAccessEmail({
       to: onboarding.employee.email,
       name: onboarding.employee.name,
+      systems,
     });
 
     const updated = await prisma.onboarding.update({
@@ -272,8 +281,12 @@ export const sendWelcomeOnboarding = async (req, res) => {
       },
       data: {
         welcomeSent: true,
+        accessCreated: true,
         status:
           onboarding.status === 'PENDENTE' ? 'EM_ANDAMENTO' : onboarding.status,
+        notes: onboarding.notes
+          ? `${onboarding.notes}\nBoas-vindas e planilha de acessos enviadas por e-mail.`
+          : 'Boas-vindas e planilha de acessos enviadas por e-mail.',
       },
       include: {
         employee: true,
@@ -281,13 +294,17 @@ export const sendWelcomeOnboarding = async (req, res) => {
     });
 
     return res.json({
-      message: 'Email enviado com sucesso 🚀',
+      message: 'Boas-vindas e acessos enviados com sucesso 🚀',
       onboarding: updated,
+      accessTemplate: {
+        employee: onboarding.employee.name,
+        systems,
+      },
     });
   } catch (error) {
     console.error('SEND WELCOME ERROR:', error);
     return res.status(500).json({
-      message: 'Erro ao enviar email',
+      message: 'Erro ao enviar boas-vindas e acessos',
       error: error.message,
     });
   }
