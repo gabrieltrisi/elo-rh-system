@@ -186,6 +186,17 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     throw new AppError('Este link de pré-admissão expirou', 410);
   }
 
+  if (
+    ['AGUARDANDO_APROVACAO', 'APROVADO', 'CONCLUIDO'].includes(
+      admissionForm.status
+    )
+  ) {
+    throw new AppError(
+      'Este formulário já foi enviado e não aceita novo preenchimento',
+      400
+    );
+  }
+
   const submission = await prisma.admissionFormSubmission.create({
     data: {
       admissionFormId: admissionForm.id,
@@ -259,7 +270,7 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
       id: admissionForm.id,
     },
     data: {
-      status: 'RESPONDIDO',
+      status: 'AGUARDANDO_APROVACAO',
       completedAt: new Date(),
     },
     include: {
@@ -340,11 +351,23 @@ export const startOnboardingFromAdmissionService = async (
     },
     include: {
       employee: true,
+      submissions: {
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
     },
   });
 
   if (!admissionForm) {
     throw new AppError('Pré-admissão não encontrada', 404);
+  }
+
+  if (!['AGUARDANDO_APROVACAO', 'RESPONDIDO'].includes(admissionForm.status)) {
+    throw new AppError(
+      'A pré-admissão ainda não está pronta para aprovação do RH',
+      400
+    );
   }
 
   if (!startDate) {
@@ -386,7 +409,7 @@ export const startOnboardingFromAdmissionService = async (
       accessCreated: false,
       startDate: parsedStartDate,
       notes:
-        'Onboarding iniciado automaticamente após aprovação da pré-admissão',
+        'Onboarding iniciado automaticamente após aprovação da pré-admissão pelo RH',
     },
     include: {
       employee: true,

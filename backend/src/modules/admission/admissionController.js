@@ -113,7 +113,8 @@ export const submitAdmissionForm = async (req, res, next) => {
     );
 
     return res.status(201).json({
-      message: 'Formulário de pré-admissão enviado com sucesso',
+      message:
+        'Formulário enviado com sucesso. Agora ele ficará aguardando aprovação do RH.',
       ...result,
     });
   } catch (error) {
@@ -164,7 +165,7 @@ export const startOnboardingFromAdmission = async (req, res, next) => {
     );
 
     return res.status(200).json({
-      message: 'Onboarding iniciado com sucesso',
+      message: 'Pré-admissão aprovada e onboarding iniciado com sucesso',
       onboarding,
     });
   } catch (error) {
