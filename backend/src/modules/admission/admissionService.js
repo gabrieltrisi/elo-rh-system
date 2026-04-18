@@ -42,6 +42,11 @@ const parseNullableDate = (value) => {
   return parsed;
 };
 
+const isExpired = (expiresAt) => {
+  if (!expiresAt) return false;
+  return new Date(expiresAt) < new Date();
+};
+
 const buildPublicLink = (token) => {
   const baseUrl =
     process.env.FRONTEND_URL?.replace(/\/$/, '') || 'http://localhost:5173';
@@ -84,14 +89,55 @@ export const createAdmissionFormService = async (
     orderBy: {
       createdAt: 'desc',
     },
+    include: {
+      employee: true,
+    },
   });
 
-  if (existing && existing.status !== 'CONCLUIDO') {
-    return {
-      admissionForm: existing,
-      publicLink: buildPublicLink(existing.token),
-      reused: true,
-    };
+  const parsedExpiresAt = parseNullableDate(expiresAt);
+
+  if (existing) {
+    const existingExpired = isExpired(existing.expiresAt);
+    const lockStatuses = [
+      'PENDENTE',
+      'ENVIADO',
+      'AGUARDANDO_APROVACAO',
+      'RESPONDIDO',
+      'APROVADO',
+    ];
+
+    if (!existingExpired && lockStatuses.includes(existing.status)) {
+      return {
+        admissionForm: existing,
+        publicLink: buildPublicLink(existing.token),
+        reused: true,
+      };
+    }
+
+    if (
+      existingExpired ||
+      ['CONCLUIDO', 'REPROVADO'].includes(existing.status)
+    ) {
+      const refreshed = await prisma.admissionForm.create({
+        data: {
+          employeeId: Number(employeeId),
+          companyId: Number(companyId),
+          token: crypto.randomBytes(24).toString('hex'),
+          status: 'PENDENTE',
+          notes: normalizeNullableString(notes),
+          expiresAt: parsedExpiresAt,
+        },
+        include: {
+          employee: true,
+        },
+      });
+
+      return {
+        admissionForm: refreshed,
+        publicLink: buildPublicLink(refreshed.token),
+        reused: false,
+      };
+    }
   }
 
   const token = crypto.randomBytes(24).toString('hex');
@@ -103,7 +149,7 @@ export const createAdmissionFormService = async (
       token,
       status: 'PENDENTE',
       notes: normalizeNullableString(notes),
-      expiresAt: parseNullableDate(expiresAt),
+      expiresAt: parsedExpiresAt,
     },
     include: {
       employee: true,
@@ -155,10 +201,7 @@ export const getAdmissionFormByTokenService = async (token) => {
     throw new AppError('Formulário de pré-admissão não encontrado', 404);
   }
 
-  if (
-    admissionForm.expiresAt &&
-    new Date(admissionForm.expiresAt) < new Date()
-  ) {
+  if (isExpired(admissionForm.expiresAt)) {
     throw new AppError('Este link de pré-admissão expirou', 410);
   }
 
@@ -179,15 +222,12 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     throw new AppError('Formulário de pré-admissão não encontrado', 404);
   }
 
-  if (
-    admissionForm.expiresAt &&
-    new Date(admissionForm.expiresAt) < new Date()
-  ) {
+  if (isExpired(admissionForm.expiresAt)) {
     throw new AppError('Este link de pré-admissão expirou', 410);
   }
 
   if (
-    ['AGUARDANDO_APROVACAO', 'APROVADO', 'CONCLUIDO'].includes(
+    ['AGUARDANDO_APROVACAO', 'RESPONDIDO', 'APROVADO', 'CONCLUIDO'].includes(
       admissionForm.status
     )
   ) {
@@ -301,6 +341,13 @@ export const sendAdmissionInviteService = async (
 
   if (!admissionForm) {
     throw new AppError('Formulário de pré-admissão não encontrado', 404);
+  }
+
+  if (isExpired(admissionForm.expiresAt)) {
+    throw new AppError(
+      'Este link expirou. Gere uma nova pré-admissão para reenviar.',
+      400
+    );
   }
 
   const publicLink = buildPublicLink(admissionForm.token);
