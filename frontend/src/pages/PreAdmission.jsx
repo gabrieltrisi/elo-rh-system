@@ -24,6 +24,10 @@ const statusConfig = {
     label: 'Respondido',
     badge: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
   },
+  AGUARDANDO_APROVACAO: {
+    label: 'Aguardando aprovação RH',
+    badge: 'border border-orange-200 bg-orange-50 text-orange-700',
+  },
   APROVADO: {
     label: 'Aprovado',
     badge: 'border border-violet-200 bg-violet-50 text-violet-700',
@@ -80,6 +84,7 @@ const InfoCard = ({ title, value, subtitle, tone = 'slate' }) => {
     green: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     red: 'border-red-200 bg-red-50 text-red-800',
     violet: 'border-violet-200 bg-violet-50 text-violet-800',
+    orange: 'border-orange-200 bg-orange-50 text-orange-800',
   };
 
   return (
@@ -339,7 +344,10 @@ const PreAdmission = () => {
       await fetchAdmissionForms();
       closeStartDrawer();
 
-      alert(res.data?.message || 'Onboarding iniciado com sucesso.');
+      alert(
+        res.data?.message ||
+          'Pré-admissão aprovada e onboarding iniciado com sucesso.'
+      );
     } catch (error) {
       console.error('Erro ao iniciar onboarding:', error);
       alert(
@@ -374,12 +382,16 @@ const PreAdmission = () => {
     const sent = admissionForms.filter(
       (item) => item.status === 'ENVIADO'
     ).length;
-    const answered = admissionForms.filter(
-      (item) => item.status === 'RESPONDIDO'
+
+    const waitingApproval = admissionForms.filter(
+      (item) =>
+        item.status === 'AGUARDANDO_APROVACAO' || item.status === 'RESPONDIDO'
     ).length;
+
     const approved = admissionForms.filter(
       (item) => item.status === 'APROVADO'
     ).length;
+
     const pending = admissionForms.filter(
       (item) => item.status === 'PENDENTE'
     ).length;
@@ -388,7 +400,7 @@ const PreAdmission = () => {
       total: admissionForms.length,
       pending,
       sent,
-      answered,
+      waitingApproval,
       approved,
     };
   }, [admissionForms]);
@@ -415,7 +427,9 @@ const PreAdmission = () => {
         {filteredForms.map((item) => {
           const publicLink = `${window.location.origin}/admission/${item.token}`;
           const lastSubmission = item.submissions?.[0] || null;
-          const canStartOnboarding = item.status === 'RESPONDIDO';
+          const canStartOnboarding =
+            item.status === 'RESPONDIDO' ||
+            item.status === 'AGUARDANDO_APROVACAO';
 
           return (
             <div
@@ -502,11 +516,11 @@ const PreAdmission = () => {
                 ) : null}
 
                 {lastSubmission ? (
-                  <div className='rounded-2xl border border-emerald-200 bg-emerald-50 p-4'>
-                    <p className='text-sm text-emerald-700'>
+                  <div className='rounded-2xl border border-orange-200 bg-orange-50 p-4'>
+                    <p className='text-sm text-orange-700'>
                       Última resposta recebida
                     </p>
-                    <p className='mt-1 text-sm font-semibold text-emerald-800'>
+                    <p className='mt-1 text-sm font-semibold text-orange-800'>
                       {formatDateTime(lastSubmission.createdAt)}
                     </p>
                   </div>
@@ -547,7 +561,7 @@ const PreAdmission = () => {
                       onClick={() => openStartDrawer(item)}
                       className='rounded-xl border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-100'
                     >
-                      Iniciar onboarding
+                      Aprovar e iniciar onboarding
                     </button>
                   ) : null}
                 </div>
@@ -611,7 +625,9 @@ const PreAdmission = () => {
 
               <tbody className='divide-y divide-slate-100'>
                 {filteredForms.map((item) => {
-                  const canStartOnboarding = item.status === 'RESPONDIDO';
+                  const canStartOnboarding =
+                    item.status === 'RESPONDIDO' ||
+                    item.status === 'AGUARDANDO_APROVACAO';
 
                   return (
                     <tr key={item.id} className='hover:bg-slate-50/70'>
@@ -672,7 +688,7 @@ const PreAdmission = () => {
                               onClick={() => openStartDrawer(item)}
                               className='rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100'
                             >
-                              Iniciar onboarding
+                              Aprovar
                             </button>
                           ) : null}
                         </div>
@@ -737,10 +753,10 @@ const PreAdmission = () => {
             tone='blue'
           />
           <InfoCard
-            title='Respondidos'
-            value={stats.answered}
+            title='Aguardando RH'
+            value={stats.waitingApproval}
             subtitle='Prontos para validação'
-            tone='green'
+            tone='orange'
           />
           <InfoCard
             title='Aprovados'
@@ -778,6 +794,9 @@ const PreAdmission = () => {
                 <option value='PENDENTE'>Pendente</option>
                 <option value='ENVIADO'>Enviado</option>
                 <option value='RESPONDIDO'>Respondido</option>
+                <option value='AGUARDANDO_APROVACAO'>
+                  Aguardando aprovação RH
+                </option>
                 <option value='APROVADO'>Aprovado</option>
                 <option value='CONCLUIDO'>Concluído</option>
               </select>
@@ -980,7 +999,7 @@ const PreAdmission = () => {
                       Aprovação da pré-admissão
                     </div>
                     <h2 className='text-2xl font-bold text-slate-800'>
-                      Iniciar onboarding
+                      Aprovar e iniciar onboarding
                     </h2>
                     <p className='mt-1 text-sm text-slate-500'>
                       Defina a data de início do colaborador para liberar o
@@ -1053,8 +1072,8 @@ const PreAdmission = () => {
                     className='rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60'
                   >
                     {startingOnboardingId === selectedAdmission?.id
-                      ? 'Iniciando...'
-                      : 'Confirmar e iniciar onboarding'}
+                      ? 'Aprovando...'
+                      : 'Confirmar aprovação'}
                   </button>
                 </div>
               </div>
