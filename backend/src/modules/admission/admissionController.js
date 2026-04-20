@@ -14,15 +14,39 @@ export const createAdmissionForm = async (req, res, next) => {
       return next(new AppError('Empresa do usuário não identificada', 401));
     }
 
-    const { employeeId, expiresAt, notes } = req.body;
+    const {
+      fullName,
+      email,
+      phone,
+      desiredPosition,
+      contractType,
+      expiresAt,
+      notes,
+    } = req.body;
 
-    if (!employeeId) {
-      return next(new AppError('Selecione o colaborador', 400));
+    if (!fullName) {
+      return next(new AppError('Nome completo é obrigatório', 400));
+    }
+
+    if (!phone) {
+      return next(new AppError('Telefone é obrigatório', 400));
+    }
+
+    if (!desiredPosition) {
+      return next(new AppError('Vaga desejada é obrigatória', 400));
+    }
+
+    if (!contractType) {
+      return next(new AppError('Tipo de contrato é obrigatório', 400));
     }
 
     const result = await createAdmissionFormService(
       {
-        employeeId,
+        fullName,
+        email,
+        phone,
+        desiredPosition,
+        contractType,
         expiresAt,
         notes,
       },
@@ -31,8 +55,8 @@ export const createAdmissionForm = async (req, res, next) => {
 
     return res.status(201).json({
       message: result.reused
-        ? 'Link de pré-admissão já existente'
-        : 'Link de pré-admissão criado com sucesso',
+        ? 'Link de pré-admissão já existente para este candidato'
+        : 'Pré-admissão criada com sucesso',
       ...result,
     });
   } catch (error) {
@@ -158,6 +182,10 @@ export const startOnboardingFromAdmission = async (req, res, next) => {
       return next(new AppError('ID da pré-admissão não informado', 400));
     }
 
+    if (!startDate) {
+      return next(new AppError('Data de início é obrigatória', 400));
+    }
+
     const onboarding = await startOnboardingFromAdmissionService(
       id,
       startDate,
@@ -165,7 +193,8 @@ export const startOnboardingFromAdmission = async (req, res, next) => {
     );
 
     return res.status(200).json({
-      message: 'Pré-admissão aprovada e onboarding iniciado com sucesso',
+      message:
+        'Pré-admissão aprovada com sucesso. Candidato convertido em colaborador e onboarding iniciado.',
       onboarding,
     });
   } catch (error) {

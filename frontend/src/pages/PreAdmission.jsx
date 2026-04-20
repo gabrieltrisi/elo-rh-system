@@ -1,8 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 
+const CONTRACT_OPTIONS = [
+  { value: 'CLT', label: 'CLT' },
+  { value: 'TERCEIRIZADO', label: 'Terceirizado' },
+  { value: 'ESTAGIO', label: 'Estágio' },
+  { value: 'JOVEM_APRENDIZ', label: 'Jovem Aprendiz' },
+  { value: 'PJ', label: 'PJ' },
+  { value: 'TEMPORARIO', label: 'Temporário' },
+  { value: 'INTERMITENTE', label: 'Intermitente' },
+  { value: 'AUTONOMO', label: 'Autônomo' },
+];
+
 const initialForm = {
-  employeeId: '',
+  fullName: '',
+  email: '',
+  phone: '',
+  desiredPosition: '',
+  contractType: 'CLT',
   expiresAt: '',
   notes: '',
 };
@@ -52,12 +67,12 @@ const formatDateTime = (date) => {
   return parsed.toLocaleString('pt-BR');
 };
 
-const normalizeEmployeeName = (employee) =>
-  employee?.name || employee?.fullName || 'Colaborador';
+const normalizeCandidateName = (candidate) =>
+  candidate?.fullName || candidate?.name || 'Candidato';
 
 const normalizeAdmissionForm = (item) => ({
   id: item.id,
-  employeeId: Number(item.employeeId),
+  candidateId: Number(item.candidateId),
   companyId: Number(item.companyId),
   token: item.token || '',
   status: item.status || 'PENDENTE',
@@ -69,10 +84,12 @@ const normalizeAdmissionForm = (item) => ({
   notes: item.notes || '',
   createdAt: item.createdAt || '',
   updatedAt: item.updatedAt || '',
-  employee: item.employee || null,
-  employeeName: normalizeEmployeeName(item.employee),
-  employeeEmail: item.employee?.email || '',
-  employeePhone: item.employee?.phone || '',
+  candidate: item.candidate || null,
+  candidateName: normalizeCandidateName(item.candidate),
+  candidateEmail: item.candidate?.email || '',
+  candidatePhone: item.candidate?.phone || '',
+  desiredPosition: item.candidate?.desiredPosition || '',
+  contractType: item.candidate?.contractType || '',
   submissions: Array.isArray(item.submissions) ? item.submissions : [],
 });
 
@@ -109,10 +126,7 @@ const StatusBadge = ({ status }) => {
 };
 
 const PreAdmission = () => {
-  const [employees, setEmployees] = useState([]);
   const [admissionForms, setAdmissionForms] = useState([]);
-
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [loadingForms, setLoadingForms] = useState(true);
 
   const [search, setSearch] = useState('');
@@ -134,25 +148,8 @@ const PreAdmission = () => {
   const [startingOnboardingId, setStartingOnboardingId] = useState(null);
 
   useEffect(() => {
-    loadAll();
+    fetchAdmissionForms();
   }, []);
-
-  const loadAll = async () => {
-    await Promise.all([fetchEmployees(), fetchAdmissionForms()]);
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      setLoadingEmployees(true);
-      const res = await api.get('/employees');
-      setEmployees(res.data?.employees || []);
-    } catch (error) {
-      console.error('Erro ao buscar colaboradores:', error);
-      setEmployees([]);
-    } finally {
-      setLoadingEmployees(false);
-    }
-  };
 
   const fetchAdmissionForms = async () => {
     try {
@@ -213,8 +210,23 @@ const PreAdmission = () => {
   const handleCreateAdmission = async (e) => {
     e.preventDefault();
 
-    if (!formData.employeeId) {
-      alert('Selecione o colaborador.');
+    if (!formData.fullName.trim()) {
+      alert('Informe o nome completo do candidato.');
+      return;
+    }
+
+    if (!formData.phone.trim()) {
+      alert('Informe o telefone do candidato.');
+      return;
+    }
+
+    if (!formData.desiredPosition.trim()) {
+      alert('Informe a vaga desejada.');
+      return;
+    }
+
+    if (!formData.contractType) {
+      alert('Selecione o tipo de contrato.');
       return;
     }
 
@@ -222,9 +234,13 @@ const PreAdmission = () => {
       setSaving(true);
 
       const payload = {
-        employeeId: Number(formData.employeeId),
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim() || null,
+        phone: formData.phone.trim(),
+        desiredPosition: formData.desiredPosition.trim(),
+        contractType: formData.contractType,
         expiresAt: formData.expiresAt || null,
-        notes: formData.notes || null,
+        notes: formData.notes.trim() || null,
       };
 
       const res = await api.post('/admission', payload);
@@ -303,16 +319,16 @@ const PreAdmission = () => {
   };
 
   const handleOpenWhatsApp = (item) => {
-    const phone = String(item.employeePhone || '').replace(/\D/g, '');
+    const phone = String(item.candidatePhone || '').replace(/\D/g, '');
     const publicLink = `${window.location.origin}/admission/${item.token}`;
 
     if (!phone) {
-      alert('O colaborador não possui telefone cadastrado.');
+      alert('O candidato não possui telefone cadastrado.');
       return;
     }
 
     const message = encodeURIComponent(
-      `Olá, ${item.employeeName}! Seu formulário de pré-admissão está disponível no link: ${publicLink}`
+      `Olá, ${item.candidateName}! Seu formulário de pré-admissão está disponível no link: ${publicLink}`
     );
 
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
@@ -362,9 +378,11 @@ const PreAdmission = () => {
   const filteredForms = useMemo(() => {
     return admissionForms.filter((item) => {
       const matchesSearch = `
-        ${item.employeeName || ''}
-        ${item.employeeEmail || ''}
-        ${item.employeePhone || ''}
+        ${item.candidateName || ''}
+        ${item.candidateEmail || ''}
+        ${item.candidatePhone || ''}
+        ${item.desiredPosition || ''}
+        ${item.contractType || ''}
         ${item.notes || ''}
         ${item.status || ''}
       `
@@ -443,7 +461,7 @@ const PreAdmission = () => {
                       Pré-admissão
                     </p>
                     <h3 className='mt-2 text-2xl font-bold'>
-                      {item.employeeName}
+                      {item.candidateName}
                     </h3>
                     <p className='mt-1 text-sm text-slate-300'>
                       Criado em {formatDate(item.createdAt)}
@@ -459,14 +477,32 @@ const PreAdmission = () => {
                   <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
                     <p className='text-sm text-slate-500'>E-mail</p>
                     <p className='mt-1 break-all text-sm font-semibold text-slate-800'>
-                      {item.employeeEmail || 'Não informado'}
+                      {item.candidateEmail || 'Não informado'}
                     </p>
                   </div>
 
                   <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
                     <p className='text-sm text-slate-500'>Telefone</p>
                     <p className='mt-1 text-sm font-semibold text-slate-800'>
-                      {item.employeePhone || 'Não informado'}
+                      {item.candidatePhone || 'Não informado'}
+                    </p>
+                  </div>
+
+                  <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                    <p className='text-sm text-slate-500'>Vaga desejada</p>
+                    <p className='mt-1 text-sm font-semibold text-slate-800'>
+                      {item.desiredPosition || '-'}
+                    </p>
+                  </div>
+
+                  <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                    <p className='text-sm text-slate-500'>Tipo de contrato</p>
+                    <p className='mt-1 text-sm font-semibold text-slate-800'>
+                      {CONTRACT_OPTIONS.find(
+                        (option) => option.value === item.contractType
+                      )?.label ||
+                        item.contractType ||
+                        '-'}
                     </p>
                   </div>
 
@@ -600,22 +636,22 @@ const PreAdmission = () => {
               <thead className='bg-slate-50'>
                 <tr className='text-left'>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                    Colaborador
+                    Candidato
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Vaga
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Contrato
                   </th>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Status
-                  </th>
-                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                    E-mail
                   </th>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Enviado em
                   </th>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Respondido em
-                  </th>
-                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                    Início
                   </th>
                   <th className='px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Ações
@@ -632,15 +668,23 @@ const PreAdmission = () => {
                   return (
                     <tr key={item.id} className='hover:bg-slate-50/70'>
                       <td className='px-6 py-5 font-semibold text-slate-800'>
-                        {item.employeeName}
+                        {item.candidateName}
+                      </td>
+
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {item.desiredPosition || '-'}
+                      </td>
+
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {CONTRACT_OPTIONS.find(
+                          (option) => option.value === item.contractType
+                        )?.label ||
+                          item.contractType ||
+                          '-'}
                       </td>
 
                       <td className='px-6 py-5'>
                         <StatusBadge status={item.status} />
-                      </td>
-
-                      <td className='px-6 py-5 text-sm text-slate-700'>
-                        {item.employeeEmail || '-'}
                       </td>
 
                       <td className='px-6 py-5 text-sm text-slate-700'>
@@ -649,10 +693,6 @@ const PreAdmission = () => {
 
                       <td className='px-6 py-5 text-sm text-slate-700'>
                         {formatDateTime(item.completedAt)}
-                      </td>
-
-                      <td className='px-6 py-5 text-sm text-slate-700'>
-                        {formatDate(item.startDate)}
                       </td>
 
                       <td className='px-6 py-5'>
@@ -717,8 +757,8 @@ const PreAdmission = () => {
                 Pré-Admissão
               </h1>
               <p className='mt-4 text-lg text-slate-300'>
-                Gere links, acompanhe envios, valide respostas e libere o início
-                do onboarding com data definida.
+                Cadastre o candidato com base no currículo, dispare o formulário
+                e acompanhe a aprovação até o onboarding.
               </p>
             </div>
 
@@ -727,7 +767,7 @@ const PreAdmission = () => {
                 onClick={() => openDrawer()}
                 className='rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg transition hover:scale-[1.03] hover:bg-slate-100'
               >
-                + Nova pré-admissão
+                + Novo pré-cadastro
               </button>
             </div>
           </div>
@@ -774,7 +814,7 @@ const PreAdmission = () => {
               </label>
               <input
                 type='text'
-                placeholder='Buscar por colaborador, e-mail, telefone ou status'
+                placeholder='Buscar por candidato, telefone, vaga, contrato ou status'
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className='w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500'
@@ -857,13 +897,13 @@ const PreAdmission = () => {
 
                   <div>
                     <div className='mb-2 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600'>
-                      Etapa anterior ao onboarding
+                      Pré-cadastro do candidato
                     </div>
                     <h2 className='text-2xl font-bold text-slate-800'>
                       Nova pré-admissão
                     </h2>
                     <p className='mt-1 text-sm text-slate-500'>
-                      Gere o link do colaborador e prepare o disparo do convite.
+                      Cadastre os dados iniciais para disparar o formulário.
                     </p>
                   </div>
                 </div>
@@ -887,39 +927,88 @@ const PreAdmission = () => {
                   <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
                     <div className='mb-5'>
                       <h3 className='text-lg font-semibold text-slate-800'>
-                        Colaborador
+                        Dados do candidato
                       </h3>
                       <p className='mt-1 text-sm text-slate-500'>
-                        Selecione quem receberá o formulário de pré-admissão.
+                        Preencha com base no currículo enviado ao RH.
                       </p>
                     </div>
 
-                    <label className='mb-2 block text-sm font-semibold text-slate-700'>
-                      Colaborador
-                    </label>
-                    <select
-                      name='employeeId'
-                      value={formData.employeeId}
-                      onChange={handleChange}
-                      className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
-                      disabled={loadingEmployees}
-                    >
-                      <option value=''>
-                        {loadingEmployees
-                          ? 'Carregando colaboradores...'
-                          : 'Selecione o colaborador'}
-                      </option>
-                      {employees.map((employee) => (
-                        <option key={employee.id} value={employee.id}>
-                          {employee.fullName || employee.name} —{' '}
-                          {employee.department || 'Sem departamento'}
-                        </option>
-                      ))}
-                    </select>
-                  </section>
-
-                  <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
                     <div className='grid grid-cols-1 gap-5 md:grid-cols-2'>
+                      <div className='md:col-span-2'>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Nome completo
+                        </label>
+                        <input
+                          type='text'
+                          name='fullName'
+                          value={formData.fullName}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                          placeholder='Digite o nome completo'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Telefone
+                        </label>
+                        <input
+                          type='text'
+                          name='phone'
+                          value={formData.phone}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                          placeholder='(00) 00000-0000'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          E-mail
+                        </label>
+                        <input
+                          type='email'
+                          name='email'
+                          value={formData.email}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                          placeholder='email@exemplo.com'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Vaga desejada
+                        </label>
+                        <input
+                          type='text'
+                          name='desiredPosition'
+                          value={formData.desiredPosition}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                          placeholder='Ex: Assistente Administrativo'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Tipo de contrato
+                        </label>
+                        <select
+                          name='contractType'
+                          value={formData.contractType}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        >
+                          {CONTRACT_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <div>
                         <label className='mb-2 block text-sm font-semibold text-slate-700'>
                           Expira em
@@ -944,7 +1033,7 @@ const PreAdmission = () => {
                       value={formData.notes}
                       onChange={handleChange}
                       rows='5'
-                      placeholder='Ex: envio imediato, admissão urgente, aguardar retorno do colaborador.'
+                      placeholder='Ex: aprovado na triagem, priorizar retorno, processo urgente.'
                       className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
                     />
                   </section>
@@ -1002,8 +1091,8 @@ const PreAdmission = () => {
                       Aprovar e iniciar onboarding
                     </h2>
                     <p className='mt-1 text-sm text-slate-500'>
-                      Defina a data de início do colaborador para liberar o
-                      onboarding.
+                      Defina a data de início para transformar o candidato em
+                      colaborador.
                     </p>
                   </div>
                 </div>
@@ -1027,7 +1116,7 @@ const PreAdmission = () => {
                   <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
                     <div className='mb-5'>
                       <h3 className='text-lg font-semibold text-slate-800'>
-                        Colaborador
+                        Candidato
                       </h3>
                       <p className='mt-1 text-sm text-slate-500'>
                         Confirme a data oficial de início para criar o
@@ -1036,9 +1125,9 @@ const PreAdmission = () => {
                     </div>
 
                     <div className='mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4'>
-                      <p className='text-sm text-slate-500'>Colaborador</p>
+                      <p className='text-sm text-slate-500'>Candidato</p>
                       <p className='mt-1 text-base font-semibold text-slate-800'>
-                        {selectedAdmission?.employeeName || '-'}
+                        {selectedAdmission?.candidateName || '-'}
                       </p>
                     </div>
 

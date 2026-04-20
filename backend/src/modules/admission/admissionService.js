@@ -3,11 +3,30 @@ import prisma from '../../prisma/client.js';
 import AppError from '../../errors/AppError.js';
 import { sendAdmissionInviteEmail } from '../../services/emailService.js';
 
+const CONTRACT_TYPES = [
+  'CLT',
+  'TERCEIRIZADO',
+  'ESTAGIO',
+  'JOVEM_APRENDIZ',
+  'PJ',
+  'TEMPORARIO',
+  'INTERMITENTE',
+  'AUTONOMO',
+];
+
 const REQUIRED_DOCUMENT_CATEGORIES = [
-  'RG',
+  'Foto Digital / Crachá',
+  'RG (Frente)',
+  'RG (Verso)',
   'CPF',
+  'Certidão de Nascimento',
+  'Certidão de Casamento',
+  'Título de Eleitor',
   'Comprovante de Residência',
-  'Carteira de Trabalho',
+  'Histórico Escolar',
+  'Comprovante de Matrícula',
+  'Reservista / Dispensa',
+  'CNH',
   'Dados Bancários',
   'ASO',
   'Contrato',
@@ -47,6 +66,16 @@ const isExpired = (expiresAt) => {
   return new Date(expiresAt) < new Date();
 };
 
+const ensureValidContractType = (contractType) => {
+  if (!contractType) {
+    throw new AppError('Tipo de contrato é obrigatório', 400);
+  }
+
+  if (!CONTRACT_TYPES.includes(contractType)) {
+    throw new AppError('Tipo de contrato inválido', 400);
+  }
+};
+
 const buildPublicLink = (token) => {
   const baseUrl =
     process.env.FRONTEND_URL?.replace(/\/$/, '') || 'http://localhost:5173';
@@ -54,47 +83,194 @@ const buildPublicLink = (token) => {
   return `${baseUrl}/admission/${token}`;
 };
 
-const buildWhatsAppLink = ({ employeeName, phone, publicLink }) => {
+const buildWhatsAppLink = ({ candidateName, phone, publicLink }) => {
   const cleanPhone = String(phone || '').replace(/\D/g, '');
 
   if (!cleanPhone) return null;
 
   const message = encodeURIComponent(
-    `Olá, ${employeeName || 'colaborador'}! Seu formulário de pré-admissão já está disponível. Acesse pelo link: ${publicLink}`
+    `Olá, ${candidateName || 'candidato'}! Seu formulário de pré-admissão já está disponível. Acesse pelo link: ${publicLink}`
   );
 
   return `https://wa.me/${cleanPhone}?text=${message}`;
 };
 
-export const createAdmissionFormService = async (
-  { employeeId, expiresAt, notes },
-  companyId
-) => {
-  const employee = await prisma.employee.findFirst({
+const resolveDocumentCategory = (fieldName) => {
+  const normalized = String(fieldName || '').toLowerCase();
+
+  if (normalized.includes('photo') || normalized.includes('foto')) {
+    return 'Foto Digital / Crachá';
+  }
+
+  if (normalized.includes('rgfront') || normalized.includes('rgfrente')) {
+    return 'RG (Frente)';
+  }
+
+  if (normalized.includes('rgback') || normalized.includes('rgverso')) {
+    return 'RG (Verso)';
+  }
+
+  if (normalized.includes('cpf')) {
+    return 'CPF';
+  }
+
+  if (
+    normalized.includes('birthcertificate') ||
+    normalized.includes('certidaonascimento')
+  ) {
+    return 'Certidão de Nascimento';
+  }
+
+  if (
+    normalized.includes('marriagecertificate') ||
+    normalized.includes('certidaocasamento')
+  ) {
+    return 'Certidão de Casamento';
+  }
+
+  if (normalized.includes('votertitle') || normalized.includes('titulo')) {
+    return 'Título de Eleitor';
+  }
+
+  if (normalized.includes('residence') || normalized.includes('residencia')) {
+    return 'Comprovante de Residência';
+  }
+
+  if (
+    normalized.includes('schoolhistory') ||
+    normalized.includes('historico')
+  ) {
+    return 'Histórico Escolar';
+  }
+
+  if (
+    normalized.includes('enrollmentproof') ||
+    normalized.includes('matricula')
+  ) {
+    return 'Comprovante de Matrícula';
+  }
+
+  if (
+    normalized.includes('military') ||
+    normalized.includes('reservista') ||
+    normalized.includes('dispensa')
+  ) {
+    return 'Reservista / Dispensa';
+  }
+
+  if (normalized.includes('cnh')) {
+    return 'CNH';
+  }
+
+  if (normalized.includes('bankdata') || normalized.includes('banco')) {
+    return 'Dados Bancários';
+  }
+
+  if (normalized.includes('aso')) {
+    return 'ASO';
+  }
+
+  if (normalized.includes('contract') || normalized.includes('contrato')) {
+    return 'Contrato';
+  }
+
+  return fieldName;
+};
+
+const findCandidateByReference = async ({
+  companyId,
+  fullName,
+  email,
+  phone,
+}) => {
+  const normalizedEmail = normalizeNullableString(email);
+  const normalizedPhone = normalizeNullableString(phone);
+
+  return await prisma.admissionCandidate.findFirst({
     where: {
-      id: Number(employeeId),
       companyId: Number(companyId),
+      OR: [
+        ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+        { fullName: String(fullName).trim() },
+      ],
+    },
+    orderBy: {
+      createdAt: 'desc',
     },
   });
+};
 
-  if (!employee) {
-    throw new AppError('Colaborador não encontrado para esta empresa', 404);
+export const createAdmissionFormService = async (
+  { fullName, email, phone, desiredPosition, contractType, expiresAt, notes },
+  companyId
+) => {
+  if (!fullName || String(fullName).trim().length < 3) {
+    throw new AppError('Nome completo é obrigatório', 400);
+  }
+
+  if (!phone || String(phone).trim().length < 8) {
+    throw new AppError('Telefone é obrigatório', 400);
+  }
+
+  if (!desiredPosition || String(desiredPosition).trim().length < 2) {
+    throw new AppError('Vaga desejada é obrigatória', 400);
+  }
+
+  ensureValidContractType(contractType);
+
+  const parsedExpiresAt = parseNullableDate(expiresAt);
+  const normalizedEmail = normalizeNullableString(email);
+  const normalizedNotes = normalizeNullableString(notes);
+
+  let candidate = await findCandidateByReference({
+    companyId,
+    fullName,
+    email,
+    phone,
+  });
+
+  if (!candidate) {
+    candidate = await prisma.admissionCandidate.create({
+      data: {
+        companyId: Number(companyId),
+        fullName: String(fullName).trim(),
+        email: normalizedEmail,
+        phone: String(phone).trim(),
+        desiredPosition: String(desiredPosition).trim(),
+        contractType,
+        status: 'CADASTRADO',
+        notes: normalizedNotes,
+      },
+    });
+  } else {
+    candidate = await prisma.admissionCandidate.update({
+      where: {
+        id: candidate.id,
+      },
+      data: {
+        fullName: String(fullName).trim(),
+        email: normalizedEmail,
+        phone: String(phone).trim(),
+        desiredPosition: String(desiredPosition).trim(),
+        contractType,
+        notes: normalizedNotes,
+      },
+    });
   }
 
   const existing = await prisma.admissionForm.findFirst({
     where: {
-      employeeId: Number(employeeId),
+      candidateId: candidate.id,
       companyId: Number(companyId),
     },
     orderBy: {
       createdAt: 'desc',
     },
     include: {
-      employee: true,
+      candidate: true,
     },
   });
-
-  const parsedExpiresAt = parseNullableDate(expiresAt);
 
   if (existing) {
     const existingExpired = isExpired(existing.expiresAt);
@@ -120,15 +296,24 @@ export const createAdmissionFormService = async (
     ) {
       const refreshed = await prisma.admissionForm.create({
         data: {
-          employeeId: Number(employeeId),
+          candidateId: candidate.id,
           companyId: Number(companyId),
           token: crypto.randomBytes(24).toString('hex'),
           status: 'PENDENTE',
-          notes: normalizeNullableString(notes),
+          notes: normalizedNotes,
           expiresAt: parsedExpiresAt,
         },
         include: {
-          employee: true,
+          candidate: true,
+        },
+      });
+
+      await prisma.admissionCandidate.update({
+        where: {
+          id: candidate.id,
+        },
+        data: {
+          status: 'CADASTRADO',
         },
       });
 
@@ -144,15 +329,24 @@ export const createAdmissionFormService = async (
 
   const admissionForm = await prisma.admissionForm.create({
     data: {
-      employeeId: Number(employeeId),
+      candidateId: candidate.id,
       companyId: Number(companyId),
       token,
       status: 'PENDENTE',
-      notes: normalizeNullableString(notes),
+      notes: normalizedNotes,
       expiresAt: parsedExpiresAt,
     },
     include: {
-      employee: true,
+      candidate: true,
+    },
+  });
+
+  await prisma.admissionCandidate.update({
+    where: {
+      id: candidate.id,
+    },
+    data: {
+      status: 'CADASTRADO',
     },
   });
 
@@ -169,7 +363,7 @@ export const getAllAdmissionFormsService = async (companyId) => {
       companyId: Number(companyId),
     },
     include: {
-      employee: true,
+      candidate: true,
       submissions: {
         orderBy: {
           createdAt: 'desc',
@@ -188,7 +382,7 @@ export const getAdmissionFormByTokenService = async (token) => {
       token,
     },
     include: {
-      employee: true,
+      candidate: true,
       submissions: {
         orderBy: {
           createdAt: 'desc',
@@ -214,7 +408,7 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
       token,
     },
     include: {
-      employee: true,
+      candidate: true,
     },
   });
 
@@ -261,41 +455,28 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
     },
   });
 
-  await prisma.employee.update({
+  await prisma.admissionCandidate.update({
     where: {
-      id: admissionForm.employeeId,
+      id: admissionForm.candidateId,
     },
     data: {
-      name: data.name,
-      cpf: data.cpf,
-      birthDate: parseRequiredDate(data.birthDate, 'Data de nascimento'),
-      maritalStatus: data.maritalStatus,
-      email: data.email,
+      fullName: data.name,
+      email: normalizeNullableString(data.email),
       phone: data.phone,
-      role: data.role,
-      department: data.department,
-      admissionDate: parseRequiredDate(data.admissionDate, 'Data de admissão'),
-      shirtSize: normalizeNullableString(data.shirtSize),
-      pantsSize: normalizeNullableString(data.pantsSize),
-      bootSize: normalizeNullableString(data.bootSize),
-      notes: normalizeNullableString(data.notes),
+      status: 'AGUARDANDO_APROVACAO',
     },
   });
 
   if (files.length > 0) {
     const docsToCreate = files.map((file) => {
-      const category =
-        REQUIRED_DOCUMENT_CATEGORIES.find((item) =>
-          file.fieldname.toLowerCase().includes(item.toLowerCase())
-        ) || file.fieldname;
+      const category = resolveDocumentCategory(file.fieldname);
 
       return {
         title: category,
-        description: 'Enviado pelo colaborador no formulário de pré-admissão',
+        description: 'Enviado pelo candidato no formulário de pré-admissão',
         category,
         fileName: file.originalname,
         fileUrl: `/uploads/admission/${file.filename}`,
-        employeeId: admissionForm.employeeId,
         companyId: admissionForm.companyId,
       };
     });
@@ -314,7 +495,7 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
       completedAt: new Date(),
     },
     include: {
-      employee: true,
+      candidate: true,
       submissions: true,
     },
   });
@@ -335,7 +516,7 @@ export const sendAdmissionInviteService = async (
       companyId: Number(companyId),
     },
     include: {
-      employee: true,
+      candidate: true,
     },
   });
 
@@ -352,15 +533,15 @@ export const sendAdmissionInviteService = async (
 
   const publicLink = buildPublicLink(admissionForm.token);
   const whatsappLink = buildWhatsAppLink({
-    employeeName: admissionForm.employee?.name,
-    phone: admissionForm.employee?.phone,
+    candidateName: admissionForm.candidate?.fullName,
+    phone: admissionForm.candidate?.phone,
     publicLink,
   });
 
-  if (admissionForm.employee?.email) {
+  if (admissionForm.candidate?.email) {
     await sendAdmissionInviteEmail({
-      to: admissionForm.employee.email,
-      employeeName: admissionForm.employee.name,
+      to: admissionForm.candidate.email,
+      employeeName: admissionForm.candidate.fullName,
       publicLink,
     });
   }
@@ -375,7 +556,19 @@ export const sendAdmissionInviteService = async (
         admissionForm.status === 'PENDENTE' ? 'ENVIADO' : admissionForm.status,
     },
     include: {
-      employee: true,
+      candidate: true,
+    },
+  });
+
+  await prisma.admissionCandidate.update({
+    where: {
+      id: admissionForm.candidateId,
+    },
+    data: {
+      status:
+        updated.status === 'ENVIADO'
+          ? 'FORMULARIO_ENVIADO'
+          : admissionForm.candidate?.status || 'CADASTRADO',
     },
   });
 
@@ -397,7 +590,7 @@ export const startOnboardingFromAdmissionService = async (
       companyId: Number(companyId),
     },
     include: {
-      employee: true,
+      candidate: true,
       submissions: {
         orderBy: {
           createdAt: 'desc',
@@ -421,14 +614,62 @@ export const startOnboardingFromAdmissionService = async (
     throw new AppError('Data de início é obrigatória', 400);
   }
 
+  const submission = admissionForm.submissions?.[0];
+
+  if (!submission) {
+    throw new AppError(
+      'Nenhuma resposta do formulário foi encontrada para este candidato',
+      400
+    );
+  }
+
   const parsedStartDate = parseRequiredDate(
     startDate,
     'Data de início do colaborador'
   );
 
+  const existingEmployee = await prisma.employee.findFirst({
+    where: {
+      companyId: Number(companyId),
+      OR: [{ cpf: submission.cpf }, { email: submission.email }],
+    },
+  });
+
+  if (existingEmployee) {
+    throw new AppError(
+      'Já existe colaborador com este CPF ou e-mail nesta empresa',
+      400
+    );
+  }
+
+  const employee = await prisma.employee.create({
+    data: {
+      companyId: Number(companyId),
+      name: submission.fullName,
+      cpf: submission.cpf,
+      birthDate: submission.birthDate,
+      maritalStatus: submission.maritalStatus,
+      email: submission.email,
+      phone: submission.phone,
+      role: submission.role || admissionForm.candidate.desiredPosition,
+      department: submission.department,
+      contractType: admissionForm.candidate.contractType,
+      admissionDate: parsedStartDate,
+      status: 'ativo',
+      shirtSize: normalizeNullableString(submission.shirtSize),
+      pantsSize: normalizeNullableString(submission.pantsSize),
+      bootSize: normalizeNullableString(submission.bootSize),
+      notes: normalizeNullableString(
+        [admissionForm.candidate.notes, submission.notes]
+          .filter(Boolean)
+          .join(' | ')
+      ),
+    },
+  });
+
   const existingOnboarding = await prisma.onboarding.findUnique({
     where: {
-      employeeId: admissionForm.employeeId,
+      employeeId: employee.id,
     },
   });
 
@@ -447,9 +688,18 @@ export const startOnboardingFromAdmissionService = async (
     },
   });
 
+  await prisma.admissionCandidate.update({
+    where: {
+      id: admissionForm.candidateId,
+    },
+    data: {
+      status: 'CONVERTIDO',
+    },
+  });
+
   const onboarding = await prisma.onboarding.create({
     data: {
-      employeeId: admissionForm.employeeId,
+      employeeId: employee.id,
       companyId: admissionForm.companyId,
       status: 'EM_ANDAMENTO',
       welcomeSent: false,

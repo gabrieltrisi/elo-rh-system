@@ -75,7 +75,7 @@ const Input = ({ label, className = '', ...props }) => (
     </label>
     <input
       {...props}
-      className={`w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500 ${className}`}
+      className={`w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500 disabled:opacity-60 ${className}`}
     />
   </div>
 );
@@ -153,20 +153,20 @@ const AdmissionForm = () => {
     try {
       setLoading(true);
       setErrorMessage('');
+      setSuccessMessage('');
 
       const res = await api.get(`/admission/public/${token}`);
       const data = res.data?.admissionForm || null;
 
       setAdmissionForm(data);
 
-      if (data?.employee) {
+      if (data?.candidate) {
         setFormData((prev) => ({
           ...prev,
-          name: data.employee.name || '',
-          email: data.employee.email || '',
-          phone: data.employee.phone || '',
-          role: data.employee.role || '',
-          department: data.employee.department || '',
+          name: data.candidate.fullName || '',
+          email: data.candidate.email || '',
+          phone: data.candidate.phone || '',
+          role: data.candidate.desiredPosition || '',
         }));
       }
 
