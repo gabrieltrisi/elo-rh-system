@@ -91,6 +91,7 @@ const normalizeAdmissionForm = (item) => ({
   desiredPosition: item.candidate?.desiredPosition || '',
   contractType: item.candidate?.contractType || '',
   submissions: Array.isArray(item.submissions) ? item.submissions : [],
+  documents: Array.isArray(item.documents) ? item.documents : [],
 });
 
 const InfoCard = ({ title, value, subtitle, tone = 'slate' }) => {
@@ -155,8 +156,10 @@ const PreAdmission = () => {
     try {
       setLoadingForms(true);
       const res = await api.get('/admission');
-      const raw = res.data?.admissionForms || [];
-      setAdmissionForms(raw.map(normalizeAdmissionForm));
+      const raw = Array.isArray(res.data?.admissionForms)
+        ? res.data.admissionForms
+        : [];
+      setAdmissionForms(raw.map((item) => normalizeAdmissionForm(item)));
     } catch (error) {
       console.error('Erro ao buscar pré-admissões:', error);
       setAdmissionForms([]);
@@ -414,12 +417,20 @@ const PreAdmission = () => {
       (item) => item.status === 'PENDENTE'
     ).length;
 
+    const documentsPending = admissionForms.filter(
+      (item) =>
+        item.status === 'AGUARDANDO_APROVACAO' &&
+        Array.isArray(item.documents) &&
+        item.documents.length > 0
+    ).length;
+
     return {
       total: admissionForms.length,
       pending,
       sent,
       waitingApproval,
       approved,
+      documentsPending,
     };
   }, [admissionForms]);
 
@@ -448,6 +459,12 @@ const PreAdmission = () => {
           const canStartOnboarding =
             item.status === 'RESPONDIDO' ||
             item.status === 'AGUARDANDO_APROVACAO';
+          const hasDocuments =
+            Array.isArray(item.documents) && item.documents.length > 0;
+          const showApprovalReadyHighlight =
+            (item.status === 'AGUARDANDO_APROVACAO' ||
+              item.status === 'RESPONDIDO') &&
+            hasDocuments;
 
           return (
             <div
@@ -473,6 +490,26 @@ const PreAdmission = () => {
               </div>
 
               <div className='space-y-5 p-5'>
+                {showApprovalReadyHighlight ? (
+                  <div className='rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 p-4 shadow-sm'>
+                    <div className='flex items-start justify-between gap-3'>
+                      <div>
+                        <p className='text-sm font-semibold text-emerald-700'>
+                          Pronto para aprovação com documentação
+                        </p>
+                        <p className='mt-1 text-sm text-emerald-800'>
+                          O candidato já enviou documentos e pode seguir para a
+                          validação do RH.
+                        </p>
+                      </div>
+                      <span className='inline-flex rounded-full border border-emerald-300 bg-white/80 px-3 py-1 text-xs font-semibold text-emerald-700'>
+                        {item.documents.length} arquivo
+                        {item.documents.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
                   <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
                     <p className='text-sm text-slate-500'>E-mail</p>
@@ -562,6 +599,62 @@ const PreAdmission = () => {
                   </div>
                 ) : null}
 
+                <div className='rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <div>
+                      <p className='text-sm font-semibold text-slate-800'>
+                        Documentos enviados
+                      </p>
+                      <p className='mt-1 text-sm text-slate-500'>
+                        Arquivos vinculados pelo candidato na pré-admissão.
+                      </p>
+                    </div>
+                    {hasDocuments ? (
+                      <span className='inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700'>
+                        {item.documents.length} arquivo
+                        {item.documents.length > 1 ? 's' : ''}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {!hasDocuments ? (
+                    <div className='mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-medium text-amber-800'>
+                      Nenhum documento enviado ainda
+                    </div>
+                  ) : (
+                    <div className='mt-4 space-y-3'>
+                      {item.documents.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className='flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between'
+                        >
+                          <div className='min-w-0'>
+                            <p className='text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                              {doc.category || 'Sem categoria'}
+                            </p>
+                            <p className='mt-1 break-all text-sm font-semibold text-slate-800'>
+                              {doc.fileName || 'Documento sem nome'}
+                            </p>
+                          </div>
+
+                          <button
+                            type='button'
+                            onClick={() =>
+                              window.open(
+                                `http://localhost:3001${doc.fileUrl}`,
+                                '_blank'
+                              )
+                            }
+                            className='inline-flex rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100'
+                          >
+                            Abrir documento
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className='flex flex-wrap gap-3 pt-1'>
                   <button
                     type='button'
@@ -648,6 +741,9 @@ const PreAdmission = () => {
                     Status
                   </th>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Documentos
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
                     Enviado em
                   </th>
                   <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
@@ -668,7 +764,16 @@ const PreAdmission = () => {
                   return (
                     <tr key={item.id} className='hover:bg-slate-50/70'>
                       <td className='px-6 py-5 font-semibold text-slate-800'>
-                        {item.candidateName}
+                        <div className='space-y-2'>
+                          <p>{item.candidateName}</p>
+                          {(item.status === 'AGUARDANDO_APROVACAO' ||
+                            item.status === 'RESPONDIDO') &&
+                          item.documents.length > 0 ? (
+                            <span className='inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700'>
+                              Pronto para aprovação com documentação
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
 
                       <td className='px-6 py-5 text-sm text-slate-700'>
@@ -685,6 +790,14 @@ const PreAdmission = () => {
 
                       <td className='px-6 py-5'>
                         <StatusBadge status={item.status} />
+                      </td>
+
+                      <td className='px-6 py-5 text-sm text-slate-700'>
+                        {item.documents.length > 0
+                          ? `${item.documents.length} arquivo${
+                              item.documents.length > 1 ? 's' : ''
+                            }`
+                          : '-'}
                       </td>
 
                       <td className='px-6 py-5 text-sm text-slate-700'>
@@ -773,7 +886,7 @@ const PreAdmission = () => {
           </div>
         </div>
 
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-5'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-6'>
           <InfoCard
             title='Total'
             value={stats.total}
@@ -797,6 +910,12 @@ const PreAdmission = () => {
             value={stats.waitingApproval}
             subtitle='Prontos para validação'
             tone='orange'
+          />
+          <InfoCard
+            title='Documentos Recebidos'
+            value={stats.documentsPending}
+            subtitle='Aguardando aprovação com arquivos'
+            tone='green'
           />
           <InfoCard
             title='Aprovados'

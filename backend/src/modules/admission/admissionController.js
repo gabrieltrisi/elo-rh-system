@@ -24,19 +24,19 @@ export const createAdmissionForm = async (req, res, next) => {
       notes,
     } = req.body;
 
-    if (!fullName) {
+    if (!fullName || !String(fullName).trim()) {
       return next(new AppError('Nome completo é obrigatório', 400));
     }
 
-    if (!phone) {
+    if (!phone || !String(phone).trim()) {
       return next(new AppError('Telefone é obrigatório', 400));
     }
 
-    if (!desiredPosition) {
+    if (!desiredPosition || !String(desiredPosition).trim()) {
       return next(new AppError('Vaga desejada é obrigatória', 400));
     }
 
-    if (!contractType) {
+    if (!contractType || !String(contractType).trim()) {
       return next(new AppError('Tipo de contrato é obrigatório', 400));
     }
 
@@ -117,13 +117,11 @@ export const submitAdmissionForm = async (req, res, next) => {
       'maritalStatus',
       'email',
       'phone',
-      'role',
-      'department',
       'admissionDate',
     ];
 
     for (const field of requiredFields) {
-      if (!req.body[field]) {
+      if (!req.body[field] || !String(req.body[field]).trim()) {
         return next(
           new AppError(`Campo obrigatório não informado: ${field}`, 400)
         );

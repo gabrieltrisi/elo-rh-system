@@ -463,6 +463,9 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
       fullName: data.name,
       email: normalizeNullableString(data.email),
       phone: data.phone,
+      desiredPosition:
+        normalizeNullableString(data.role) ||
+        admissionForm.candidate.desiredPosition,
       status: 'AGUARDANDO_APROVACAO',
     },
   });
@@ -477,6 +480,7 @@ export const submitAdmissionFormService = async (token, data, files = []) => {
         category,
         fileName: file.originalname,
         fileUrl: `/uploads/admission/${file.filename}`,
+        candidateId: admissionForm.candidateId,
         companyId: admissionForm.companyId,
       };
     });
@@ -541,7 +545,7 @@ export const sendAdmissionInviteService = async (
   if (admissionForm.candidate?.email) {
     await sendAdmissionInviteEmail({
       to: admissionForm.candidate.email,
-      employeeName: admissionForm.candidate.fullName,
+      candidateName: admissionForm.candidate.fullName,
       publicLink,
     });
   }
@@ -667,15 +671,15 @@ export const startOnboardingFromAdmissionService = async (
     },
   });
 
-  const existingOnboarding = await prisma.onboarding.findUnique({
+  await prisma.document.updateMany({
     where: {
+      companyId: admissionForm.companyId,
+      candidateId: admissionForm.candidateId,
+    },
+    data: {
       employeeId: employee.id,
     },
   });
-
-  if (existingOnboarding) {
-    throw new AppError('Já existe onboarding para este colaborador', 400);
-  }
 
   await prisma.admissionForm.update({
     where: {

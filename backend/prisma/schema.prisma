@@ -76,6 +76,9 @@ model Employee {
 
   @@unique([companyId, email])
   @@unique([companyId, cpf])
+  @@index([companyId])
+  @@index([status])
+  @@index([contractType])
 }
 
 model AdmissionCandidate {
@@ -97,6 +100,7 @@ model AdmissionCandidate {
   @@index([companyId])
   @@index([status])
   @@index([contractType])
+  @@index([fullName])
 }
 
 model Vacation {
@@ -213,6 +217,7 @@ model Document {
 
   @@index([companyId])
   @@index([employeeId])
+  @@index([category])
 }
 
 model Warning {
@@ -313,6 +318,7 @@ model Onboarding {
   company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+  @@index([status])
 }
 
 model AdmissionForm {
@@ -336,6 +342,7 @@ model AdmissionForm {
 
   @@index([companyId])
   @@index([candidateId])
+  @@index([status])
 }
 
 model AdmissionFormSubmission {
