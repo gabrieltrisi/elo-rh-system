@@ -96,6 +96,7 @@ model AdmissionCandidate {
 
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   admissionForms  AdmissionForm[]
+  documents       Document[]
 
   @@index([companyId])
   @@index([status])
@@ -201,22 +202,25 @@ model WorkSchedule {
 }
 
 model Document {
-  id          Int       @id @default(autoincrement())
+  id          Int                 @id @default(autoincrement())
   title       String
   description String?
   category    String
   fileName    String
   fileUrl     String
   employeeId  Int?
+  candidateId Int?
   companyId   Int
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
-  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee    Employee?           @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  candidate   AdmissionCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([employeeId])
+  @@index([candidateId])
   @@index([category])
 }
 
@@ -322,22 +326,22 @@ model Onboarding {
 }
 
 model AdmissionForm {
-  id             Int                     @id @default(autoincrement())
-  candidateId    Int
+  id             Int                      @id @default(autoincrement())
+  candidateId    Int?
   companyId      Int
-  token          String                  @unique
-  status         String                  @default("PENDENTE")
+  token          String                   @unique
+  status         String                   @default("PENDENTE")
   startDate      DateTime?
   approvedAt     DateTime?
   expiresAt      DateTime?
   sentAt         DateTime?
   completedAt    DateTime?
   notes          String?
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
 
-  candidate      AdmissionCandidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  company        Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidate      AdmissionCandidate?      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  company        Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   submissions    AdmissionFormSubmission[]
 
   @@index([companyId])
