@@ -37,11 +37,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model Employee {
-  id             Int              @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   name           String
   cpf            String
   birthDate      DateTime
@@ -51,17 +51,17 @@ model Employee {
   role           String
   department     String
   admissionDate  DateTime
-  status         String           @default("ativo")
+  status         String   @default("ativo")
   contractType   String?
   shirtSize      String?
   pantsSize      String?
   bootSize       String?
   notes          String?
   companyId      Int
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   vacations      Vacation[]
   certificates   Certificate[]
   uniforms       UniformControl[]
@@ -82,21 +82,21 @@ model Employee {
 }
 
 model AdmissionCandidate {
-  id              Int              @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   companyId       Int
   fullName        String
   email           String?
   phone           String
   desiredPosition String
   contractType    String
-  status          String           @default("CADASTRADO")
+  status          String   @default("CADASTRADO")
   notes           String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  admissionForms  AdmissionForm[]
-  documents       Document[]
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  admissionForms AdmissionForm[]
+  documents      Document[]
 
   @@index([companyId])
   @@index([status])
@@ -115,7 +115,7 @@ model Vacation {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model Certificate {
@@ -131,7 +131,7 @@ model Certificate {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model UniformControl {
@@ -144,7 +144,7 @@ model UniformControl {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model UniformStock {
@@ -159,7 +159,7 @@ model UniformStock {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
 }
@@ -180,7 +180,7 @@ model WorkHour {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, referenceMonth, referenceYear])
   @@index([referenceYear, referenceMonth])
@@ -198,29 +198,32 @@ model WorkSchedule {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model Document {
-  id          Int                 @id @default(autoincrement())
-  title       String
-  description String?
-  category    String
-  fileName    String
-  fileUrl     String
-  employeeId  Int?
-  candidateId Int?
-  companyId   Int
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id              Int      @id @default(autoincrement())
+  title           String
+  description     String?
+  category        String
+  fileName        String
+  fileUrl         String
+  employeeId      Int?
+  candidateId     Int?
+  admissionFormId Int?
+  companyId       Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  employee    Employee?           @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  candidate   AdmissionCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
-  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee      Employee?           @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  candidate     AdmissionCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  admissionForm AdmissionForm?      @relation(fields: [admissionFormId], references: [id], onDelete: SetNull)
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([employeeId])
   @@index([candidateId])
+  @@index([admissionFormId])
   @@index([category])
 }
 
@@ -236,8 +239,8 @@ model Warning {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([companyId])
@@ -255,8 +258,8 @@ model EmployeeLeave {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([companyId])
@@ -264,19 +267,19 @@ model EmployeeLeave {
 }
 
 model Suspension {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   employeeId  Int
   companyId   Int
   title       String
   startDate   DateTime
   endDate     DateTime?
-  status      String    @default("Registrada")
+  status      String   @default("Registrada")
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([companyId])
@@ -284,21 +287,21 @@ model Suspension {
 }
 
 model Benefit {
-  id                   Int       @id @default(autoincrement())
+  id                   Int      @id @default(autoincrement())
   employeeId           Int
   companyId            Int
-  transportVoucher     Boolean   @default(false)
+  transportVoucher     Boolean  @default(false)
   transportVoucherType String?
-  mealVoucher          Boolean   @default(false)
+  mealVoucher          Boolean  @default(false)
   mealVoucherType      String?
-  healthPlan           Boolean   @default(false)
-  dentalPlan           Boolean   @default(false)
+  healthPlan           Boolean  @default(false)
+  dentalPlan           Boolean  @default(false)
   notes                String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, companyId])
   @@index([employeeId])
@@ -306,43 +309,44 @@ model Benefit {
 }
 
 model Onboarding {
-  id            Int       @id @default(autoincrement())
-  employeeId    Int       @unique
+  id            Int      @id @default(autoincrement())
+  employeeId    Int      @unique
   companyId     Int
-  status        String    @default("PENDENTE")
-  welcomeSent   Boolean   @default(false)
-  accessCreated Boolean   @default(false)
-  startDate     DateTime  @default(now())
+  status        String   @default("PENDENTE")
+  welcomeSent   Boolean  @default(false)
+  accessCreated Boolean  @default(false)
+  startDate     DateTime @default(now())
   completedAt   DateTime?
   notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([status])
 }
 
 model AdmissionForm {
-  id             Int                      @id @default(autoincrement())
-  candidateId    Int?
-  companyId      Int
-  token          String                   @unique
-  status         String                   @default("PENDENTE")
-  startDate      DateTime?
-  approvedAt     DateTime?
-  expiresAt      DateTime?
-  sentAt         DateTime?
-  completedAt    DateTime?
-  notes          String?
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
+  id          Int      @id @default(autoincrement())
+  candidateId Int?
+  companyId   Int
+  token       String   @unique
+  status      String   @default("PENDENTE")
+  startDate   DateTime?
+  approvedAt  DateTime?
+  expiresAt   DateTime?
+  sentAt      DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  candidate      AdmissionCandidate?      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  company        Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  submissions    AdmissionFormSubmission[]
+  candidate   AdmissionCandidate?      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  company     Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  submissions AdmissionFormSubmission[]
+  documents   Document[]
 
   @@index([companyId])
   @@index([candidateId])
@@ -350,30 +354,30 @@ model AdmissionForm {
 }
 
 model AdmissionFormSubmission {
-  id                Int            @id @default(autoincrement())
-  admissionFormId   Int
-  fullName          String
-  cpf               String
-  birthDate         DateTime
-  maritalStatus     String
-  email             String
-  phone             String
-  role              String
-  department        String
-  admissionDate     DateTime
-  shirtSize         String?
-  pantsSize         String?
-  bootSize          String?
-  notes             String?
-  address           String?
-  bankName          String?
-  bankAgency        String?
-  bankAccount       String?
-  pixKey            String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id              Int      @id @default(autoincrement())
+  admissionFormId Int
+  fullName        String
+  cpf             String
+  birthDate       DateTime
+  maritalStatus   String
+  email           String
+  phone           String
+  role            String
+  department      String
+  admissionDate   DateTime
+  shirtSize       String?
+  pantsSize       String?
+  bootSize        String?
+  notes           String?
+  address         String?
+  bankName        String?
+  bankAgency      String?
+  bankAccount     String?
+  pixKey          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  admissionForm     AdmissionForm  @relation(fields: [admissionFormId], references: [id], onDelete: Cascade)
+  admissionForm AdmissionForm @relation(fields: [admissionFormId], references: [id], onDelete: Cascade)
 
   @@index([admissionFormId])
 }
