@@ -1,0 +1,1515 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  RH
+  GESTOR
+  VISUALIZADOR
+}
+
+enum UserStatus {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+}
+
+enum ProfileType {
+  SYSTEM
+  CUSTOM
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum StorageProvider {
+  LOCAL
+  SHAREPOINT
+  ONEDRIVE
+}
+
+enum StorageSyncStatus {
+  LOCAL_ONLY
+  PENDING
+  SYNCED
+  FAILED
+  ARCHIVED
+}
+
+enum IntegrationProvider {
+  SHAREPOINT
+  ONEDRIVE
+  MYAHGORA_TOTVS
+  EMAIL
+  API_WEBHOOKS
+  FUTURE
+}
+
+enum IntegrationCategory {
+  STORAGE
+  TIME_TRACKING
+  COMMUNICATION
+  PLATFORM
+}
+
+enum IntegrationStatus {
+  CONECTADA
+  CONFIGURACAO_PENDENTE
+  INATIVA
+  ERRO
+  EM_IMPLANTACAO
+}
+
+enum IntegrationLogStatus {
+  SUCCESS
+  WARNING
+  ERROR
+  PENDING
+}
+
+enum PayrollRunStatus {
+  ABERTA
+  EM_PROCESSAMENTO
+  PROCESSADA
+  FECHADA
+  REABERTA
+  ERRO
+}
+
+enum PayrollEmployeeStatus {
+  PENDENTE
+  PROCESSADO
+  INCONSISTENTE
+  BLOQUEADO
+}
+
+enum PayrollMovementType {
+  PROVENTO
+  DESCONTO
+  INFORMATIVO
+}
+
+enum PayrollMovementSource {
+  MANUAL
+  AUTOMATICO
+  FIXO
+  IMPORTADO
+}
+
+enum TimePayrollSourceType {
+  OVERTIME_50
+  OVERTIME_100
+  ABSENCE
+  DELAY
+  BANK_HOURS
+  ADJUSTMENT
+}
+
+enum TimePayrollConversionMode {
+  HOURS_TO_EVENT
+  MINUTES_TO_EVENT
+  INFORMATIVE
+}
+
+enum PayrollCalculationType {
+  FIXO
+  PERCENTUAL
+  FORMULA
+  MANUAL
+}
+
+enum TimeImportSource {
+  MYAHGORA
+  TOTVS
+  MANUAL
+}
+
+enum TimeImportStatus {
+  PREVIEW
+  IMPORTADO
+  ERRO
+  ARQUIVADO
+}
+
+enum TimeValidationStatus {
+  VALIDO
+  PENDENTE_VINCULO
+  INVALIDO
+  DUPLICADO
+}
+
+model Company {
+  id                  Int                  @id @default(autoincrement())
+  code                String?              @unique
+  name                String
+  tradeName           String?
+  legalName           String?
+  cnpj                String?
+  email               String?
+  phone               String?
+  address             String?
+  city                String?
+  state               String?
+  zipCode             String?
+  logoUrl             String?
+  timezone            String?
+  language            String?
+  primaryColor        String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  users               User[]
+  profiles            Profile[]
+  employees           Employee[]
+  employeeCompanies   EmployeeCompany[]
+  uniformStocks       UniformStock[]
+  documents           Document[]
+  warnings            Warning[]
+  employeeLeaves      EmployeeLeave[]
+  suspensions         Suspension[]
+  benefits            Benefit[]
+  onboardings         Onboarding[]
+  admissionCandidates AdmissionCandidate[]
+  admissionForms      AdmissionForm[]
+  trainings           Training[]
+  employeeTrainings   EmployeeTraining[]
+  candidates          Candidate[]
+  payrollRuns         PayrollRun[]
+  payrollEvents       PayrollEvent[]
+  employeePayrollEvents EmployeePayrollEvent[]
+  timePayrollMappings TimePayrollMapping[]
+  auditLogs           AuditLog[]
+  storageObjects      StorageObject[]
+  storageIntegrationSetting StorageIntegrationSetting?
+  integrationConnections IntegrationConnection[]
+  integrationSyncLogs IntegrationSyncLog[]
+  timeImportBatches   TimeImportBatch[]
+  timeEntries         TimeEntry[]
+  timeSummaries       TimeSummary[]
+  workSchedules       WorkSchedule[]
+  workSpecialDates    WorkSpecialDate[]
+  userSecurities      UserSecurity[]
+  userSessions        UserSession[]
+  authChallenges      AuthChallenge[]
+  performanceEvaluations PerformanceEvaluation[]
+  performancePeerFeedbacks PerformancePeerFeedback[]
+  performanceExternalFeedbacks PerformanceExternalFeedback[]
+  settings            SystemSetting[]
+  units               CompanyUnit[]
+}
+
+model User {
+  id                Int        @id @default(autoincrement())
+  name              String?
+  email             String     @unique
+  username          String?    @unique
+  password          String
+  role              UserRole   @default(ADMIN)
+  status            UserStatus @default(ATIVO)
+  employeeId        Int?
+  companyId         Int
+  lastLoginAt       DateTime?
+  passwordChangedAt DateTime?
+  mustChangePassword Boolean   @default(false)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee          Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  userProfiles      UserProfile[]
+  auditLogs         AuditLog[]
+  uploadedStorageObjects StorageObject[] @relation("StorageObjectUploadedByUser")
+  timeImportBatches  TimeImportBatch[]   @relation("TimeImportBatchImportedByUser")
+  updatedSettings    SystemSetting[]     @relation("SystemSettingUpdatedByUser")
+  createdWorkSchedules WorkSchedule[]    @relation("WorkScheduleCreatedByUser")
+  security           UserSecurity?
+  sessions           UserSession[]
+  passwordHistory    PasswordHistory[]
+  authChallenges     AuthChallenge[]
+  createdPerformanceEvaluations PerformanceEvaluation[] @relation("PerformanceEvaluationCreatedByUser")
+  createdPerformancePeerFeedbacks PerformancePeerFeedback[] @relation("PerformancePeerFeedbackCreatedByUser")
+  createdPerformanceExternalFeedbacks PerformanceExternalFeedback[] @relation("PerformanceExternalFeedbackCreatedByUser")
+
+  @@index([companyId])
+  @@index([status])
+  @@index([employeeId])
+}
+
+model UserSecurity {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @unique
+  companyId             Int
+  mfaEnabled            Boolean   @default(false)
+  mfaRequired           Boolean   @default(false)
+  mfaMethod             String    @default("EMAIL_OTP")
+  mfaSecretHash         String?
+  failedLoginCount      Int       @default(0)
+  failedMfaCount        Int       @default(0)
+  lockUntil             DateTime?
+  lastFailedLoginAt     DateTime?
+  lastSuccessfulLoginAt DateTime?
+  lastMfaAt             DateTime?
+  reauthAt              DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([mfaEnabled])
+  @@index([lockUntil])
+}
+
+model UserSession {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  companyId         Int
+  tokenId           String    @unique
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+  lastActivityAt    DateTime  @default(now())
+  expiresAt         DateTime
+  absoluteExpiresAt DateTime
+  mfaVerifiedAt     DateTime?
+  reauthAt          DateTime?
+  revokedAt         DateTime?
+  revokedReason     String?
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model LoginAttemptState {
+  id             Int       @id @default(autoincrement())
+  email          String
+  ipAddress      String?
+  failedCount    Int       @default(0)
+  lockUntil      DateTime?
+  lastAttemptAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([email, ipAddress])
+  @@index([email])
+  @@index([lockUntil])
+}
+
+model AuthChallenge {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  companyId     Int
+  challengeToken String   @unique
+  purpose       String
+  codeHash      String
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(5)
+  metadataJson  Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([purpose])
+  @@index([expiresAt])
+}
+
+model PasswordHistory {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  namespace       String
+  settingKey      String    @default("default")
+  value           Json
+  updatedByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedByUser   User?     @relation("SystemSettingUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, namespace, settingKey])
+  @@index([companyId])
+  @@index([namespace])
+  @@index([updatedByUserId])
+}
+
+model CompanyUnit {
+  id          Int       @id @default(autoincrement())
+  companyId   Int
+  name        String
+  code        String?
+  cnpj        String?
+  email       String?
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?
+  timezone    String?
+  status      String    @default("ATIVA")
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([status])
+  @@unique([companyId, code])
+}
+
+model Profile {
+  id                Int                 @id @default(autoincrement())
+  name              String
+  slug              String              @unique
+  description       String?
+  type              ProfileType         @default(CUSTOM)
+  isSystem          Boolean             @default(false)
+  isActive          Boolean             @default(true)
+  companyId         Int?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  company           Company?            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  profilePermissions ProfilePermission[]
+  userProfiles      UserProfile[]
+
+  @@index([companyId])
+  @@index([isActive])
+  @@index([type])
+}
+
+model Permission {
+  id                 Int                 @id @default(autoincrement())
+  module             String
+  action             String
+  key                String              @unique
+  description        String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  profilePermissions ProfilePermission[]
+
+  @@index([module])
+  @@index([action])
+}
+
+model ProfilePermission {
+  id           Int        @id @default(autoincrement())
+  profileId    Int
+  permissionId Int
+  createdAt    DateTime   @default(now())
+
+  profile      Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, permissionId])
+  @@index([profileId])
+  @@index([permissionId])
+}
+
+model UserProfile {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  profileId  Int
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, profileId])
+  @@index([userId])
+  @@index([profileId])
+}
+
+model Employee {
+  id             Int              @id @default(autoincrement())
+  name           String
+  cpf            String
+  birthDate      DateTime
+  maritalStatus  String
+  email          String
+  phone          String
+  role           String
+  department     String
+  admissionDate  DateTime
+  status         String           @default("ativo")
+  contractType   String?
+  shirtSize      String?
+  pantsSize      String?
+  bootSize       String?
+  notes          String?
+  companyId      Int
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeCompanies EmployeeCompany[]
+  vacations      Vacation[]
+  certificates   Certificate[]
+  uniforms       UniformControl[]
+  uniformDeliveries UniformDelivery[]
+  workHours      WorkHour[]
+  workSchedules  WorkSchedule[]
+  workScheduleAssignments WorkScheduleAssignment[]
+  documents      Document[]
+  warnings       Warning[]
+  employeeLeaves EmployeeLeave[]
+  suspensions    Suspension[]
+  benefits       Benefit[]
+  onboarding     Onboarding?
+  trainings      EmployeeTraining[]
+  payrollRunEmployees PayrollRunEmployee[]
+  payrollMovements PayrollMovement[]
+  employeePayrollEvents EmployeePayrollEvent[]
+  users          User[]
+  storageObjects StorageObject[]
+  timeEntries     TimeEntry[]
+  timeSummaries   TimeSummary[]
+  performanceEvaluations PerformanceEvaluation[]
+  performancePeerFeedbacks PerformancePeerFeedback[] @relation("PerformanceFeedbackEmployee")
+  performanceReviewsGiven PerformancePeerFeedback[] @relation("PerformanceFeedbackReviewer")
+  performanceExternalFeedbacks PerformanceExternalFeedback[]
+
+  @@unique([companyId, email])
+  @@unique([companyId, cpf])
+  @@index([companyId])
+  @@index([status])
+  @@index([contractType])
+}
+
+model Training {
+  id            Int                @id @default(autoincrement())
+  companyId     Int
+  title         String
+  slug          String             @unique
+  category      String
+  workloadHours Int?
+  description   String?
+  isMandatory   Boolean            @default(false)
+  renewalDays   Int?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeTrainings EmployeeTraining[]
+
+  @@index([companyId])
+  @@index([category])
+}
+
+model EmployeeTraining {
+  id                   Int       @id @default(autoincrement())
+  employeeId           Int
+  trainingId           Int
+  companyId            Int
+  issuerName           String?
+  completedAt          DateTime?
+  expiresAt            DateTime?
+  status               String    @default("PENDENTE")
+  notes                String?
+  certificateFileName  String?
+  certificateFileUrl   String?
+  certificatePermalink String?   @unique
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  training             Training  @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([trainingId])
+  @@index([companyId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model Candidate {
+  id                 Int       @id @default(autoincrement())
+  companyId          Int
+  fullName           String
+  email              String?
+  phone              String?
+  vacancyTitle       String
+  stage              String    @default("TRIAGEM")
+  source             String?
+  notes              String?
+  summary            String?
+  score              Float?
+  resumeFileName     String?
+  resumeFileUrl      String?
+  convertedToAdmission Boolean @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company            Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([stage])
+  @@index([vacancyTitle])
+  @@index([fullName])
+}
+
+model EmployeeCompany {
+  id                 Int       @id @default(autoincrement())
+  employeeId         Int
+  companyId          Int
+  registrationNumber String?
+  role               String
+  department         String
+  admissionDate      DateTime
+  status             String    @default("ativo")
+  contractType       String?
+  salaryBase         Float?
+  notes              String?
+  isPrimary          Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company            Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, companyId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model PayrollRun {
+  id               Int                @id @default(autoincrement())
+  companyId        Int
+  month            Int
+  year             Int
+  referenceLabel   String
+  status           PayrollRunStatus   @default(ABERTA)
+  startedAt        DateTime           @default(now())
+  processedAt      DateTime?
+  closedAt         DateTime?
+  reopenedAt       DateTime?
+  notes            String?
+  totalEmployees   Int                @default(0)
+  totalGross       Float              @default(0)
+  totalDiscounts   Float              @default(0)
+  totalNet         Float              @default(0)
+  totalCharges     Float              @default(0)
+  createdByUserId  Int?
+  processedByUserId Int?
+  closedByUserId   Int?
+  reopenedByUserId Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employees        PayrollRunEmployee[]
+  movements        PayrollMovement[]
+
+  @@unique([companyId, month, year])
+  @@index([companyId])
+  @@index([status])
+  @@index([year, month])
+}
+
+model PayrollRunEmployee {
+  id                  Int                  @id @default(autoincrement())
+  payrollRunId        Int
+  employeeId          Int
+  status              PayrollEmployeeStatus @default(PENDENTE)
+  roleSnapshot        String?
+  departmentSnapshot  String?
+  admissionDateSnapshot DateTime?
+  salaryBaseSnapshot  Float?
+  grossAmount         Float                @default(0)
+  discountAmount      Float                @default(0)
+  netAmount           Float                @default(0)
+  chargesAmount       Float                @default(0)
+  processedAt         DateTime?
+  hasInconsistency    Boolean              @default(false)
+  inconsistencyNotes  String?
+  breakdown           Json?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  payrollRun          PayrollRun           @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee            Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollRunId, employeeId])
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model PayrollEvent {
+  id                 Int                 @id @default(autoincrement())
+  companyId          Int?
+  code               String
+  name               String
+  description        String?
+  category           String
+  type               PayrollMovementType
+  calculationType    PayrollCalculationType @default(MANUAL)
+  defaultValue       Float?
+  incidenceINSS      Boolean             @default(false)
+  incidenceFGTS      Boolean             @default(false)
+  incidenceIRRF      Boolean             @default(false)
+  isFixed            Boolean             @default(false)
+  isVariable         Boolean             @default(true)
+  defaultQuantity    Float?
+  defaultUnitValue   Float?
+  isSystem           Boolean             @default(false)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  company            Company?            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  movements          PayrollMovement[]
+  employeeEvents     EmployeePayrollEvent[]
+  timePayrollMappings TimePayrollMapping[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([category])
+  @@index([type])
+  @@index([isActive])
+}
+
+model EmployeePayrollEvent {
+  id               Int                @id @default(autoincrement())
+  employeeId       Int
+  payrollEventId   Int
+  companyId        Int
+  quantity         Float              @default(1)
+  unitValue        Float              @default(0)
+  totalValue       Float              @default(0)
+  notes            String?
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  employee         Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollEvent     PayrollEvent       @relation(fields: [payrollEventId], references: [id], onDelete: Cascade)
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, payrollEventId, companyId])
+  @@index([employeeId])
+  @@index([payrollEventId])
+  @@index([companyId])
+  @@index([isActive])
+}
+
+model PayrollMovement {
+  id               Int                 @id @default(autoincrement())
+  payrollRunId     Int
+  employeeId       Int
+  payrollEventId   Int?
+  type             PayrollMovementType
+  source           PayrollMovementSource @default(MANUAL)
+  eventCode        String?
+  eventName        String?
+  eventCategory    String?
+  quantity         Float               @default(1)
+  unitValue        Float               @default(0)
+  totalValue       Float               @default(0)
+  notes            String?
+  sourceType       String?
+  sourceReference  String?
+  autoGenerated    Boolean             @default(false)
+  metadataJson     Json?
+  isActive         Boolean             @default(true)
+  createdByUserId  Int?
+  updatedByUserId  Int?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  payrollRun       PayrollRun          @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee         Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollEvent     PayrollEvent?       @relation(fields: [payrollEventId], references: [id], onDelete: SetNull)
+
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@index([payrollEventId])
+  @@index([type])
+  @@index([source])
+  @@index([sourceReference])
+  @@index([autoGenerated])
+  @@index([isActive])
+}
+
+model TimePayrollMapping {
+  id                Int                       @id @default(autoincrement())
+  companyId         Int
+  sourceType        TimePayrollSourceType
+  payrollEventId    Int
+  conversionMode    TimePayrollConversionMode @default(HOURS_TO_EVENT)
+  factor            Float                     @default(1)
+  isActive          Boolean                   @default(true)
+  notes             String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  company           Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payrollEvent      PayrollEvent              @relation(fields: [payrollEventId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sourceType])
+  @@index([companyId])
+  @@index([payrollEventId])
+  @@index([isActive])
+}
+
+model AdmissionCandidate {
+  id              Int              @id @default(autoincrement())
+  companyId       Int
+  fullName        String
+  email           String?
+  phone           String
+  desiredPosition String
+  contractType    String
+  status          String           @default("CADASTRADO")
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  admissionForms  AdmissionForm[]
+  documents       Document[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([contractType])
+  @@index([fullName])
+}
+
+model Vacation {
+  id                Int      @id @default(autoincrement())
+  employeeId        Int
+  acquisitionPeriod String
+  startDate         DateTime
+  endDate           DateTime
+  days              Int
+  status            String   @default("PENDENTE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Certificate {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  title        String
+  startDate    DateTime
+  endDate      DateTime
+  days         Int
+  fileUrl      String?
+  status       String   @default("PENDENTE")
+  managerNotes String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model UniformControl {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  size         String?
+  quantity     Int      @default(1)
+  deliveryDate DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model UniformStock {
+  id                Int      @id @default(autoincrement())
+  companyId         Int
+  sector            String
+  itemName          String
+  color             String?
+  size              String?
+  availableQuantity Int      @default(0)
+  minimumQuantity   Int      @default(0)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deliveries        UniformDelivery[]
+
+  @@index([companyId])
+  @@index([sector])
+  @@index([itemName])
+}
+
+model UniformDelivery {
+  id             Int          @id @default(autoincrement())
+  employeeId     Int
+  uniformStockId Int
+  quantity       Int          @default(1)
+  deliveryDate   DateTime     @default(now())
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  uniformStock   UniformStock @relation(fields: [uniformStockId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([uniformStockId])
+  @@index([deliveryDate])
+}
+
+model WorkHour {
+  id                Int      @id @default(autoincrement())
+  employeeId        Int
+  referenceMonth    Int
+  referenceYear     Int
+  normalHours       Float    @default(0)
+  extraHours50      Float    @default(0)
+  extraHours100     Float    @default(0)
+  nightHours20      Float    @default(0)
+  nightExtraHours70 Float    @default(0)
+  n52Hours          Float    @default(0)
+  totalPaid         Float    @default(0)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, referenceMonth, referenceYear])
+  @@index([referenceYear, referenceMonth])
+}
+
+model TimeImportBatch {
+  id               Int              @id @default(autoincrement())
+  companyId        Int
+  source           TimeImportSource @default(MANUAL)
+  fileName         String
+  originalName     String
+  importedByUserId Int?
+  importedAt       DateTime?
+  confirmedAt      DateTime?
+  status           TimeImportStatus @default(PREVIEW)
+  totalRows        Int              @default(0)
+  validRows        Int              @default(0)
+  invalidRows      Int              @default(0)
+  pendingRows      Int              @default(0)
+  duplicateRows    Int              @default(0)
+  recognizedEmployees Int           @default(0)
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  notes            String?
+  mappingJson      Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importedByUser   User?            @relation("TimeImportBatchImportedByUser", fields: [importedByUserId], references: [id], onDelete: SetNull)
+  entries          TimeEntry[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([source])
+  @@index([importedByUserId])
+  @@index([createdAt])
+}
+
+model TimeEntry {
+  id                     Int                  @id @default(autoincrement())
+  importBatchId          Int
+  companyId              Int
+  employeeId             Int?
+  employeeNameSnapshot   String?
+  employeeDocumentSnapshot String?
+  employeeCodeSnapshot   String?
+  workDate               DateTime
+  firstEntry             String?
+  firstExit              String?
+  secondEntry            String?
+  secondExit             String?
+  thirdEntry             String?
+  thirdExit              String?
+  punchesJson            Json?
+  workedMinutes          Int                  @default(0)
+  overtimeMinutes        Int                  @default(0)
+  delayMinutes           Int                  @default(0)
+  absenceMinutes         Int                  @default(0)
+  bankHoursMinutes       Int                  @default(0)
+  notes                  String?
+  rawJson                Json?
+  validationStatus       TimeValidationStatus @default(VALIDO)
+  validationErrors       Json?
+  sourceRowNumber        Int?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  importBatch            TimeImportBatch      @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  company                Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee               Employee?            @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([importBatchId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([workDate])
+  @@index([validationStatus])
+  @@index([employeeCodeSnapshot])
+}
+
+model TimeSummary {
+  id                   Int       @id @default(autoincrement())
+  companyId            Int
+  employeeId           Int
+  referenceMonth       Int
+  referenceYear        Int
+  workedMinutes        Int       @default(0)
+  overtimeMinutes      Int       @default(0)
+  delayMinutes         Int       @default(0)
+  absenceMinutes       Int       @default(0)
+  bankHoursMinutes     Int       @default(0)
+  previousBalanceMinutes Int     @default(0)
+  closingBalanceMinutes Int      @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, employeeId, referenceMonth, referenceYear])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([referenceYear, referenceMonth])
+}
+
+model PerformanceEvaluation {
+  id               Int       @id @default(autoincrement())
+  companyId        Int
+  employeeId       Int
+  periodStart      DateTime
+  periodEnd        DateTime
+  efficiencyScore  Float     @default(0)
+  behaviorScore    Float     @default(0)
+  managerScore     Float     @default(0)
+  finalScore       Float     @default(0)
+  classification   String    @default("ATENCAO")
+  notes            String?
+  strengths        String?
+  attentionPoints  String?
+  developmentPlan  String?
+  recommendation   String?
+  createdByUserId  Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdByUser    User?     @relation("PerformanceEvaluationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([periodStart, periodEnd])
+  @@index([classification])
+}
+
+model PerformancePeerFeedback {
+  id                 Int       @id @default(autoincrement())
+  companyId          Int
+  employeeId         Int
+  reviewerEmployeeId Int?
+  score              Float
+  category           String    @default("GERAL")
+  comment            String?
+  periodStart        DateTime?
+  periodEnd          DateTime?
+  createdByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company            Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee           Employee  @relation("PerformanceFeedbackEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewerEmployee   Employee? @relation("PerformanceFeedbackReviewer", fields: [reviewerEmployeeId], references: [id], onDelete: SetNull)
+  createdByUser      User?     @relation("PerformancePeerFeedbackCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([reviewerEmployeeId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model PerformanceExternalFeedback {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  employeeId      Int
+  companyName     String
+  score           Float
+  comment         String?
+  serviceContext  String?
+  feedbackDate    DateTime  @default(now())
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdByUser   User?     @relation("PerformanceExternalFeedbackCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([companyName])
+  @@index([feedbackDate])
+}
+
+model WorkSchedule {
+  id               Int                     @id @default(autoincrement())
+  companyId        Int?
+  employeeId       Int?
+  createdByUserId  Int?
+  specialDateId    Int?
+  name             String                  @default("Escala operacional")
+  scheduleType     String
+  status           String                  @default("RASCUNHO")
+  startDate        DateTime?
+  endDate          DateTime?
+  defaultStartTime String?
+  defaultEndTime   String?
+  breakMinutes     Int?
+  location         String?
+  clientName       String?
+  workModel        String?
+  categoryType     String?
+  isTrustPosition  Boolean                 @default(false)
+  worksOnHolidays  Boolean                 @default(false)
+  observations     String?
+  notes            String?
+  isDeleted        Boolean                 @default(false)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  company          Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee         Employee?               @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdByUser    User?                   @relation("WorkScheduleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  specialDate      WorkSpecialDate?        @relation(fields: [specialDateId], references: [id], onDelete: SetNull)
+  assignments      WorkScheduleAssignment[]
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([scheduleType])
+  @@index([startDate, endDate])
+  @@index([specialDateId])
+}
+
+model WorkScheduleAssignment {
+  id           Int          @id @default(autoincrement())
+  scheduleId   Int
+  employeeId   Int
+  workDate     DateTime
+  startTime    String?
+  endTime      String?
+  breakMinutes Int?
+  roleNote     String?
+  status       String       @default("ESCALADO")
+  conflictJson Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  schedule     WorkSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+  @@index([employeeId])
+  @@index([workDate])
+  @@index([status])
+}
+
+model WorkSpecialDate {
+  id          Int            @id @default(autoincrement())
+  companyId   Int
+  name        String
+  date        DateTime
+  type        String
+  isRecurring Boolean        @default(false)
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  schedules   WorkSchedule[]
+
+  @@index([companyId])
+  @@index([date])
+  @@index([type])
+}
+
+model Document {
+  id              Int                 @id @default(autoincrement())
+  title           String
+  description     String?
+  category        String
+  fileName        String
+  fileUrl         String
+  employeeId      Int?
+  candidateId     Int?
+  admissionFormId Int?
+  companyId       Int
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  employee        Employee?           @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  candidate       AdmissionCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  admissionForm   AdmissionForm?      @relation(fields: [admissionFormId], references: [id], onDelete: SetNull)
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([candidateId])
+  @@index([admissionFormId])
+  @@index([category])
+}
+
+model StorageIntegrationSetting {
+  id                 Int             @id @default(autoincrement())
+  companyId          Int             @unique
+  provider           StorageProvider @default(LOCAL)
+  tenantId           String?
+  clientId           String?
+  siteId             String?
+  driveId            String?
+  rootFolder         String          @default("EloSystem")
+  isActive           Boolean         @default(false)
+  allowLocalFallback Boolean         @default(true)
+  syncDocuments      Boolean         @default(true)
+  syncAdmissions     Boolean         @default(true)
+  syncWarnings       Boolean         @default(true)
+  syncSuspensions    Boolean         @default(true)
+  syncLeaves         Boolean         @default(true)
+  syncPayslips       Boolean         @default(true)
+  notes              String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  company            Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model StorageObject {
+  id                 Int               @id @default(autoincrement())
+  companyId          Int
+  provider           StorageProvider   @default(LOCAL)
+  module             String
+  entityType         String
+  entityId           Int?
+  employeeId         Int?
+  uploadedByUserId   Int?
+  originalName       String
+  storedName         String
+  fileName           String
+  mimeType           String?
+  size               Int?
+  path               String?
+  localFallbackPath  String?
+  externalFileId     String?
+  externalDriveId    String?
+  externalSiteId     String?
+  externalItemId     String?
+  externalUrl        String?
+  webUrl             String?
+  logicalKey         String?
+  versionNumber      Int               @default(1)
+  versionLabel       String?
+  syncStatus         StorageSyncStatus @default(LOCAL_ONLY)
+  syncMessage        String?
+  isCurrent          Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee           Employee?         @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  uploadedByUser     User?             @relation("StorageObjectUploadedByUser", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([module])
+  @@index([entityType, entityId])
+  @@index([employeeId])
+  @@index([uploadedByUserId])
+  @@index([syncStatus])
+  @@index([logicalKey, isCurrent])
+}
+
+model IntegrationConnection {
+  id                 Int                 @id @default(autoincrement())
+  companyId          Int
+  provider           IntegrationProvider
+  category           IntegrationCategory
+  name               String
+  description        String?
+  status             IntegrationStatus   @default(CONFIGURACAO_PENDENTE)
+  isActive           Boolean             @default(false)
+  configJson         Json
+  lastSyncAt         DateTime?
+  lastSuccessAt      DateTime?
+  lastErrorAt        DateTime?
+  lastErrorMessage   String?
+  totalOperations    Int                 @default(0)
+  recentOperations   Int                 @default(0)
+  notes              String?
+  createdByUserId    Int?
+  updatedByUserId    Int?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  syncLogs           IntegrationSyncLog[]
+
+  @@unique([companyId, provider])
+  @@index([companyId])
+  @@index([provider])
+  @@index([category])
+  @@index([status])
+}
+
+model IntegrationSyncLog {
+  id                 Int                 @id @default(autoincrement())
+  integrationId      Int
+  companyId          Int
+  action             String
+  status             IntegrationLogStatus @default(PENDING)
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  summary            String?
+  detailsJson        Json?
+  errorMessage       String?
+  createdByUserId    Int?
+  createdAt          DateTime            @default(now())
+
+  integration        IntegrationConnection @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId])
+  @@index([companyId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id                Int           @id @default(autoincrement())
+  companyId         Int?
+  userId            Int?
+  userNameSnapshot  String?
+  userEmailSnapshot String?
+  module            String
+  entityType        String?
+  entityId          String?
+  action            String
+  severity          AuditSeverity @default(INFO)
+  summary           String
+  detailsJson       Json?
+  beforeJson        Json?
+  afterJson         Json?
+  ipAddress         String?
+  userAgent         String?
+  requestId         String?
+  createdAt         DateTime      @default(now())
+
+  company           Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model Warning {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  title       String
+  type        String
+  warningDate DateTime
+  status      String   @default("Registrada")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+model EmployeeLeave {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  type        String
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("Ativo")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([companyId])
+  @@index([status])
+}
+
+model Suspension {
+  id          Int       @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  title       String
+  startDate   DateTime
+  endDate     DateTime?
+  status      String    @default("Registrada")
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([companyId])
+  @@index([status])
+}
+
+model Benefit {
+  id                   Int       @id @default(autoincrement())
+  employeeId           Int
+  companyId            Int
+  transportVoucher     Boolean   @default(false)
+  transportVoucherType String?
+  mealVoucher          Boolean   @default(false)
+  mealVoucherType      String?
+  healthPlan           Boolean   @default(false)
+  dentalPlan           Boolean   @default(false)
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, companyId])
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+model Onboarding {
+  id            Int       @id @default(autoincrement())
+  employeeId    Int       @unique
+  companyId     Int
+  status        String    @default("PENDENTE")
+  welcomeSent   Boolean   @default(false)
+  accessCreated Boolean   @default(false)
+  startDate     DateTime  @default(now())
+  completedAt   DateTime?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model AdmissionForm {
+  id             Int                       @id @default(autoincrement())
+  candidateId    Int?
+  companyId      Int
+  token          String                    @unique
+  status         String                    @default("PENDENTE")
+  startDate      DateTime?
+  approvedAt     DateTime?
+  expiresAt      DateTime?
+  sentAt         DateTime?
+  completedAt    DateTime?
+  notes          String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  candidate      AdmissionCandidate?       @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  company        Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  submissions    AdmissionFormSubmission[]
+  documents      Document[]
+
+  @@index([companyId])
+  @@index([candidateId])
+  @@index([status])
+}
+
+model AdmissionFormSubmission {
+  id                Int            @id @default(autoincrement())
+  admissionFormId   Int
+  fullName          String
+  cpf               String
+  birthDate         DateTime
+  maritalStatus     String
+  email             String
+  phone             String
+  role              String
+  department        String
+  admissionDate     DateTime
+  shirtSize         String?
+  pantsSize         String?
+  bootSize          String?
+  notes             String?
+  address           String?
+  bankName          String?
+  bankAgency        String?
+  bankAccount       String?
+  pixKey            String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  admissionForm     AdmissionForm  @relation(fields: [admissionFormId], references: [id], onDelete: Cascade)
+
+  @@index([admissionFormId])
+}

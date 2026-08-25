@@ -1,0 +1,933 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import api from '../services/api';
+import { getFileViewUrl } from '../utils/fileUrl';
+
+const initialForm = {
+  employeeId: '',
+  employeeName: '',
+  title: '',
+  type: 'Atestado médico',
+  cid: '',
+  date: '',
+  days: 1,
+  status: 'Registrado',
+  description: '',
+  attachmentName: '',
+  attachmentData: '',
+  attachmentFile: null,
+};
+
+const parseManagerNotes = (value) => {
+  if (!value) {
+    return {
+      type: 'Atestado médico',
+      cid: '',
+      description: '',
+      attachmentName: '',
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return {
+      type: parsed.type || 'Atestado médico',
+      cid: parsed.cid || '',
+      description: parsed.description || '',
+      attachmentName: parsed.attachmentName || '',
+    };
+  } catch {
+    return {
+      type: 'Atestado médico',
+      cid: '',
+      description: value || '',
+      attachmentName: '',
+    };
+  }
+};
+
+const mapCertificateFromApi = (item) => {
+  const notes = parseManagerNotes(item.managerNotes);
+
+  return {
+    id: item.id,
+    employeeId: item.employeeId,
+    employeeName: item.employee?.name || item.employeeName || '',
+    title: item.title || '',
+    type: notes.type || 'Atestado médico',
+    cid: notes.cid || '',
+    date: item.startDate || '',
+    days: item.days || 0,
+    status: item.status || 'Registrado',
+    description: notes.description || '',
+    attachmentName: notes.attachmentName || '',
+    attachmentData: item.fileUrl || '',
+    createdAt: item.createdAt || '',
+  };
+};
+
+const Certificates = () => {
+  const [employees, setEmployees] = useState([]);
+  const [certificates, setCertificates] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [loadingCertificates, setLoadingCertificates] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('Todos');
+  const [typeFilter, setTypeFilter] = useState('Todos');
+  const [activeTab, setActiveTab] = useState('list');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [formData, setFormData] = useState(initialForm);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchEmployees();
+    loadCertificates();
+  }, []);
+
+  const fetchEmployees = async () => {
+    try {
+      setLoadingEmployees(true);
+
+      const res = await api.get('/employees');
+
+      setEmployees(res.data?.employees || res.data || []);
+    } catch (err) {
+      console.error('Erro ao buscar colaboradores:', err);
+      setEmployees([]);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const loadCertificates = async () => {
+    try {
+      setLoadingCertificates(true);
+
+      const res = await api.get('/certificates');
+      const rawCertificates = res.data?.certificates || res.data || [];
+      const normalizedCertificates = rawCertificates.map(mapCertificateFromApi);
+
+      setCertificates(normalizedCertificates);
+    } catch (err) {
+      console.error('Erro ao buscar atestados:', err);
+      setCertificates([]);
+    } finally {
+      setLoadingCertificates(false);
+    }
+  };
+
+  const openDrawer = () => {
+    setFormData(initialForm);
+    setIsDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setFormData(initialForm);
+    setIsDrawerOpen(false);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === 'employeeId') {
+      const emp = employees.find((employee) => String(employee.id) === value);
+
+      setFormData((prev) => ({
+        ...prev,
+        employeeId: value,
+        employeeName: emp?.fullName || emp?.name || '',
+      }));
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      alert('Envie apenas arquivo em PDF.');
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      attachmentName: file.name,
+      attachmentFile: file,
+      attachmentData: '',
+    }));
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+
+    if (
+      !formData.employeeId ||
+      !formData.employeeName ||
+      !formData.title ||
+      !formData.date ||
+      !formData.days
+    ) {
+      alert('Preencha os campos obrigatórios.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const managerNotes = JSON.stringify({
+        type: formData.type,
+        cid: formData.cid,
+        description: formData.description,
+        attachmentName: formData.attachmentName,
+      });
+
+      const payload = new FormData();
+      payload.append('employeeId', String(Number(formData.employeeId)));
+      payload.append('title', formData.title);
+      payload.append('startDate', formData.date);
+      payload.append('endDate', formData.date);
+      payload.append('days', String(Number(formData.days)));
+      payload.append('status', formData.status);
+      payload.append('managerNotes', managerNotes);
+
+      if (formData.attachmentFile) {
+        payload.append('file', formData.attachmentFile);
+      } else if (formData.attachmentData) {
+        payload.append('fileUrl', formData.attachmentData);
+      }
+
+      await api.post('/certificates', payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      await loadCertificates();
+      closeDrawer();
+    } catch (error) {
+      console.error('Erro ao cadastrar atestado:', error);
+      alert(error?.response?.data?.message || 'Erro ao cadastrar atestado.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const confirmDelete = window.confirm(
+      'Deseja realmente excluir este atestado?'
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/certificates/${id}`);
+      await loadCertificates();
+    } catch (error) {
+      console.error('Erro ao excluir atestado:', error);
+      alert(error?.response?.data?.message || 'Erro ao excluir atestado.');
+    }
+  };
+
+  const handleOpenPdf = (attachmentData) => {
+    const url = getFileViewUrl('certificates', attachmentData);
+    if (!url) return;
+    window.open(url, '_blank');
+  };
+
+  const filteredCertificates = useMemo(() => {
+    return certificates
+      .filter((c) => {
+        const matchesSearch = `
+          ${c.employeeName || ''}
+          ${c.title || ''}
+          ${c.type || ''}
+          ${c.cid || ''}
+          ${c.description || ''}
+        `
+          .toLowerCase()
+          .includes(search.toLowerCase());
+
+        const matchesStatus =
+          statusFilter === 'Todos' ||
+          (c.status || '').toLowerCase() === statusFilter.toLowerCase();
+
+        const matchesType =
+          typeFilter === 'Todos' ||
+          (c.type || '').toLowerCase() === typeFilter.toLowerCase();
+
+        return matchesSearch && matchesStatus && matchesType;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.date || b.createdAt || 0) -
+          new Date(a.date || a.createdAt || 0)
+      );
+  }, [certificates, search, statusFilter, typeFilter]);
+
+  const stats = useMemo(() => {
+    const total = certificates.length;
+    const registered = certificates.filter(
+      (item) => (item.status || '').toLowerCase() === 'registrado'
+    ).length;
+    const approved = certificates.filter(
+      (item) => (item.status || '').toLowerCase() === 'aprovado'
+    ).length;
+    const analyzed = certificates.filter(
+      (item) => (item.status || '').toLowerCase() === 'analisado'
+    ).length;
+
+    return {
+      total,
+      registered,
+      approved,
+      analyzed,
+    };
+  }, [certificates]);
+
+  const formatDate = (date) => {
+    if (!date) return '-';
+
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) return date;
+
+    return parsedDate.toLocaleDateString('pt-BR');
+  };
+
+  const getStatusClasses = (status) => {
+    const normalized = (status || '').toLowerCase();
+
+    if (normalized === 'aprovado') {
+      return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
+    }
+
+    if (normalized === 'analisado') {
+      return 'border border-blue-200 bg-blue-50 text-blue-700';
+    }
+
+    if (normalized === 'registrado') {
+      return 'border border-amber-200 bg-amber-50 text-amber-700';
+    }
+
+    if (normalized === 'rejeitado') {
+      return 'border border-red-200 bg-red-50 text-red-700';
+    }
+
+    return 'border border-slate-200 bg-slate-100 text-slate-700';
+  };
+
+  const renderOverviewTab = () => {
+    if (loadingCertificates) {
+      return (
+        <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
+          Carregando atestados...
+        </div>
+      );
+    }
+
+    if (filteredCertificates.length === 0) {
+      return (
+        <div className='rounded-2xl border border-slate-200 bg-white px-6 py-10 text-slate-500 shadow-sm'>
+          Nenhum atestado encontrado.
+        </div>
+      );
+    }
+
+    return (
+      <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
+        {filteredCertificates.map((item) => (
+          <div
+            key={item.id}
+            className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md'
+          >
+            <div className='flex flex-col gap-4'>
+              <div className='flex items-start justify-between gap-4'>
+                <div>
+                  <h3 className='text-xl font-bold text-slate-800'>
+                    {item.title}
+                  </h3>
+                  <p className='mt-1 text-sm text-slate-500'>
+                    {item.employeeName}
+                  </p>
+                </div>
+
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                    item.status
+                  )}`}
+                >
+                  {item.status}
+                </span>
+              </div>
+
+              <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                  <p className='text-sm text-slate-500'>Tipo</p>
+                  <p className='mt-1 font-semibold text-slate-800'>
+                    {item.type || '-'}
+                  </p>
+                </div>
+
+                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                  <p className='text-sm text-slate-500'>CID</p>
+                  <p className='mt-1 font-semibold text-slate-800'>
+                    {item.cid || '-'}
+                  </p>
+                </div>
+
+                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                  <p className='text-sm text-slate-500'>Data do atestado</p>
+                  <p className='mt-1 font-semibold text-slate-800'>
+                    {formatDate(item.date)}
+                  </p>
+                </div>
+
+                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                  <p className='text-sm text-slate-500'>Quantidade de dias</p>
+                  <p className='mt-1 font-semibold text-slate-800'>
+                    {item.days}
+                  </p>
+                </div>
+              </div>
+
+              {item.description ? (
+                <div className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                  <p className='text-sm text-slate-500'>Observações</p>
+                  <p className='mt-1 text-sm font-medium text-slate-700'>
+                    {item.description}
+                  </p>
+                </div>
+              ) : null}
+
+              <div className='flex flex-wrap gap-2 pt-2'>
+                {item.attachmentData ? (
+                  <button
+                    type='button'
+                    onClick={() => handleOpenPdf(item.attachmentData)}
+                    className='rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100'
+                  >
+                    Ver PDF
+                  </button>
+                ) : null}
+
+                <button
+                  type='button'
+                  onClick={() => handleDelete(item.id)}
+                  className='rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100'
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderListTab = () => {
+    return (
+      <div className='overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm'>
+        <div className='border-b border-slate-200 px-6 py-5'>
+          <h3 className='text-xl font-semibold text-slate-800'>
+            Lista de atestados
+          </h3>
+        </div>
+
+        {loadingCertificates ? (
+          <div className='px-6 py-10 text-slate-500'>
+            Carregando atestados...
+          </div>
+        ) : filteredCertificates.length === 0 ? (
+          <div className='px-6 py-10 text-slate-500'>
+            Nenhum atestado encontrado.
+          </div>
+        ) : (
+          <div className='overflow-x-auto'>
+            <table className='min-w-full'>
+              <thead className='bg-slate-50'>
+                <tr className='text-left'>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Colaborador
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Título
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    CID
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Data
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Dias
+                  </th>
+                  <th className='px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Status
+                  </th>
+                  <th className='px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500'>
+                    Ações
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className='divide-y divide-slate-100'>
+                {filteredCertificates.map((item) => (
+                  <tr key={item.id} className='hover:bg-slate-50/70'>
+                    <td className='px-6 py-5'>
+                      <p className='font-semibold text-slate-800'>
+                        {item.employeeName}
+                      </p>
+                    </td>
+
+                    <td className='px-6 py-5 text-sm font-medium text-slate-700'>
+                      {item.title}
+                    </td>
+
+                    <td className='px-6 py-5 text-sm text-slate-600'>
+                      {item.cid || '-'}
+                    </td>
+
+                    <td className='px-6 py-5 text-sm text-slate-600'>
+                      {formatDate(item.date)}
+                    </td>
+
+                    <td className='px-6 py-5 text-sm text-slate-600'>
+                      {item.days}
+                    </td>
+
+                    <td className='px-6 py-5'>
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                          item.status
+                        )}`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+
+                    <td className='px-6 py-5'>
+                      <div className='flex flex-wrap items-center justify-center gap-2'>
+                        {item.attachmentData ? (
+                          <button
+                            type='button'
+                            onClick={() => handleOpenPdf(item.attachmentData)}
+                            className='rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100'
+                          >
+                            Ver PDF
+                          </button>
+                        ) : null}
+
+                        <button
+                          type='button'
+                          onClick={() => handleDelete(item.id)}
+                          className='rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100'
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <div className='space-y-6'>
+        <div className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+          <div>
+            <p className='text-sm font-medium uppercase tracking-wide text-slate-500'>
+              ELO
+            </p>
+            <h1 className='text-3xl font-bold text-slate-800'>Atestados</h1>
+            <p className='mt-1 text-slate-500'>
+              Gerencie os atestados dos colaboradores.
+            </p>
+          </div>
+
+          <button
+            onClick={openDrawer}
+            className='rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800'
+          >
+            + Novo atestado
+          </button>
+        </div>
+
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
+          <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+            <p className='text-sm text-slate-500'>Total de atestados</p>
+            <h2 className='mt-2 text-3xl font-bold text-slate-800'>
+              {stats.total}
+            </h2>
+          </div>
+
+          <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+            <p className='text-sm text-slate-500'>Registrados</p>
+            <h2 className='mt-2 text-3xl font-bold text-amber-600'>
+              {stats.registered}
+            </h2>
+          </div>
+
+          <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+            <p className='text-sm text-slate-500'>Aprovados</p>
+            <h2 className='mt-2 text-3xl font-bold text-emerald-600'>
+              {stats.approved}
+            </h2>
+          </div>
+
+          <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+            <p className='text-sm text-slate-500'>Analisados</p>
+            <h2 className='mt-2 text-3xl font-bold text-blue-600'>
+              {stats.analyzed}
+            </h2>
+          </div>
+        </div>
+
+        <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+          <div className='grid grid-cols-1 gap-4 lg:grid-cols-3'>
+            <div className='lg:col-span-1'>
+              <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                Buscar
+              </label>
+              <input
+                type='text'
+                placeholder='Buscar por colaborador, título, CID ou observação'
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className='w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+              />
+            </div>
+
+            <div>
+              <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className='w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+              >
+                <option value='Todos'>Todos</option>
+                <option value='Registrado'>Registrado</option>
+                <option value='Analisado'>Analisado</option>
+                <option value='Aprovado'>Aprovado</option>
+                <option value='Rejeitado'>Rejeitado</option>
+              </select>
+            </div>
+
+            <div>
+              <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                Tipo
+              </label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className='w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+              >
+                <option value='Todos'>Todos</option>
+                <option value='Atestado médico'>Atestado médico</option>
+                <option value='Atestado odontológico'>
+                  Atestado odontológico
+                </option>
+                <option value='Declaração médica'>Declaração médica</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className='rounded-2xl border border-slate-200 bg-white p-3 shadow-sm'>
+          <div className='flex flex-wrap gap-2'>
+            <button
+              type='button'
+              onClick={() => setActiveTab('overview')}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                activeTab === 'overview'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              Visão geral
+            </button>
+
+            <button
+              type='button'
+              onClick={() => setActiveTab('list')}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                activeTab === 'list'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              Lista
+            </button>
+          </div>
+        </div>
+
+        {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'list' && renderListTab()}
+      </div>
+
+      {isDrawerOpen && (
+        <div className='fixed inset-0 z-50 flex justify-end'>
+          <div
+            className='absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]'
+            onClick={closeDrawer}
+          />
+
+          <div className='relative flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-slate-50 shadow-2xl'>
+            <div className='border-b border-slate-200 bg-white px-6 py-5'>
+              <div className='flex items-start justify-between gap-4'>
+                <div className='flex items-start gap-3'>
+                  <button
+                    type='button'
+                    onClick={closeDrawer}
+                    className='rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50'
+                  >
+                    ← Voltar
+                  </button>
+
+                  <div>
+                    <div className='mb-2 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600'>
+                      Cadastro de atestado
+                    </div>
+                    <h2 className='text-2xl font-bold text-slate-800'>
+                      Novo atestado
+                    </h2>
+                    <p className='mt-1 text-sm text-slate-500'>
+                      Preencha os dados abaixo para registrar um novo atestado.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type='button'
+                  onClick={closeDrawer}
+                  className='rounded-xl px-3 py-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700'
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <form
+              onSubmit={handleCreate}
+              className='flex min-h-0 flex-1 flex-col'
+            >
+              <div className='flex-1 overflow-y-auto px-6 py-6'>
+                <div className='space-y-6'>
+                  <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+                    <div className='mb-5'>
+                      <h3 className='text-lg font-semibold text-slate-800'>
+                        Colaborador
+                      </h3>
+                      <p className='mt-1 text-sm text-slate-500'>
+                        Selecione o colaborador relacionado ao atestado.
+                      </p>
+                    </div>
+
+                    <div className='grid grid-cols-1 gap-5'>
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Colaborador
+                        </label>
+                        <select
+                          name='employeeId'
+                          value={formData.employeeId}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                          disabled={loadingEmployees}
+                        >
+                          <option value=''>
+                            {loadingEmployees
+                              ? 'Carregando colaboradores...'
+                              : 'Selecione o colaborador'}
+                          </option>
+                          {employees.map((employee) => (
+                            <option key={employee.id} value={employee.id}>
+                              {employee.fullName || employee.name} —{' '}
+                              {employee.department || 'Sem departamento'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
+                    <div className='mb-5'>
+                      <h3 className='text-lg font-semibold text-slate-800'>
+                        Dados do atestado
+                      </h3>
+                      <p className='mt-1 text-sm text-slate-500'>
+                        Informações principais do documento.
+                      </p>
+                    </div>
+
+                    <div className='grid grid-cols-1 gap-5 md:grid-cols-2'>
+                      <div className='md:col-span-2'>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Título
+                        </label>
+                        <input
+                          type='text'
+                          name='title'
+                          value={formData.title}
+                          onChange={handleChange}
+                          placeholder='Ex: Atestado médico'
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Tipo
+                        </label>
+                        <select
+                          name='type'
+                          value={formData.type}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        >
+                          <option value='Atestado médico'>
+                            Atestado médico
+                          </option>
+                          <option value='Atestado odontológico'>
+                            Atestado odontológico
+                          </option>
+                          <option value='Declaração médica'>
+                            Declaração médica
+                          </option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          CID
+                        </label>
+                        <input
+                          type='text'
+                          name='cid'
+                          value={formData.cid}
+                          onChange={handleChange}
+                          placeholder='Ex: J11, M54, A09'
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Data do atestado
+                        </label>
+                        <input
+                          type='date'
+                          name='date'
+                          value={formData.date}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Quantidade de dias
+                        </label>
+                        <input
+                          type='number'
+                          min='1'
+                          name='days'
+                          value={formData.days}
+                          onChange={handleChange}
+                          placeholder='Digite os dias'
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        />
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Status
+                        </label>
+                        <select
+                          name='status'
+                          value={formData.status}
+                          onChange={handleChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        >
+                          <option value='Registrado'>Registrado</option>
+                          <option value='Analisado'>Analisado</option>
+                          <option value='Aprovado'>Aprovado</option>
+                          <option value='Rejeitado'>Rejeitado</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Anexo PDF
+                        </label>
+                        <input
+                          type='file'
+                          accept='application/pdf'
+                          onChange={handleFileChange}
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium'
+                        />
+                        {formData.attachmentName ? (
+                          <p className='mt-2 text-xs text-slate-500'>
+                            Arquivo selecionado: {formData.attachmentName}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className='md:col-span-2'>
+                        <label className='mb-2 block text-sm font-semibold text-slate-700'>
+                          Observações
+                        </label>
+                        <textarea
+                          name='description'
+                          value={formData.description}
+                          onChange={handleChange}
+                          rows='4'
+                          placeholder='Descreva observações do atestado'
+                          className='w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-500'
+                        />
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div className='border-t border-slate-200 bg-white px-6 py-4'>
+                <div className='flex items-center justify-end gap-3'>
+                  <button
+                    type='button'
+                    onClick={closeDrawer}
+                    className='rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50'
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type='submit'
+                    disabled={saving}
+                    className='rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
+                  >
+                    {saving ? 'Salvando...' : 'Cadastrar atestado'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default Certificates;
